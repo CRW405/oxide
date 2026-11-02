@@ -112,8 +112,9 @@ Warnings and errors from the Vulkan validation layer use the same format with a
 `Vulkan validation` source label. The debug messenger subscribes only to warning
 and error severities so loader info messages do not bury real problems.
 `-DOXIDE_ENABLE_VALIDATION=OFF` skips the layer and debug messenger entirely.
-Validation output also goes through the logger, so `-DOXIDE_ENABLE_LOGGING=OFF`
-suppresses it as well.
+If validation is requested but `VK_LAYER_KHRONOS_validation` is unavailable,
+startup logs a warning and continues without the layer. Validation output also
+goes through the logger, so `-DOXIDE_ENABLE_LOGGING=OFF` suppresses it as well.
 
 Exceptions thrown by the engine embed their throw site in `what()`. Example
 programs catch `std::exception` and report it with `OXIDE_LOG_FATAL`, then exit

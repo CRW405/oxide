@@ -187,10 +187,14 @@ void VulkanDevice::waitIdleNoThrow() const noexcept {
 void VulkanDevice::createInstance(const std::string app_name) {
 	// -------------------------------------------------------------------------
 	// Step 1: verify development layers and gather the extensions required by
-	// GLFW. The debug extension is added only when the loader provides it.
+	// GLFW. A missing validation layer is downgraded to a warning so release
+	// builds still start on systems without the layer installed.
 	// -------------------------------------------------------------------------
-	if (enable_validation && !validationAvailable()) {
-		throw runtimeError(std::string("Vulkan validation layer is unavailable: ") + validation_layer);
+	bool validation_enabled = enable_validation;
+	if (validation_enabled && !validationAvailable()) {
+		OXIDE_LOG_WARNING << "Vulkan validation layer '" << validation_layer
+		                  << "' is unavailable; continuing without validation";
+		validation_enabled = false;
 	}
 
 	// -------------------------------------------------------------------------
@@ -212,12 +216,12 @@ void VulkanDevice::createInstance(const std::string app_name) {
 	}
 	std::vector<const char *> extensions(glfw_extensions, glfw_extensions + glfw_extension_count);
 	const bool                has_debug_extension =
-	    enable_validation && instanceExtensionAvailable(debug_extension);
-	if (enable_validation && !has_debug_extension) {
+	    validation_enabled && instanceExtensionAvailable(debug_extension);
+	if (validation_enabled && !has_debug_extension) {
 		OXIDE_LOG_WARNING << "Vulkan debug utils extension is unavailable; "
 		                     "validation messages will not be printed";
 	}
-	if (enable_validation && has_debug_extension) {
+	if (validation_enabled && has_debug_extension) {
 		extensions.push_back(debug_extension);
 	}
 
@@ -226,17 +230,17 @@ void VulkanDevice::createInstance(const std::string app_name) {
 	info.pApplicationInfo        = &app_info;
 	info.enabledExtensionCount   = static_cast<std::uint32_t>(extensions.size());
 	info.ppEnabledExtensionNames = extensions.data();
-	if (enable_validation) {
+	if (validation_enabled) {
 		info.enabledLayerCount   = 1;
 		info.ppEnabledLayerNames = &validation_layer;
 	}
 	VkDebugUtilsMessengerCreateInfoEXT debug_info{};
-	if (enable_validation && has_debug_extension) {
+	if (validation_enabled && has_debug_extension) {
 		debug_info = debugMessengerInfo();
 		info.pNext = &debug_info;
 	}
 	checkVk(vkCreateInstance(&info, nullptr, &instance_), "create Vulkan instance");
-	if (enable_validation && has_debug_extension) {
+	if (validation_enabled && has_debug_extension) {
 		try {
 			setupDebugMessenger();
 		} catch (...) {
