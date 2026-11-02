@@ -28,5 +28,5 @@ void main() {
 
     gl_Position = ubo.projection * ubo.view * position;
     fragColor = inColor;
-    fragTexCoord = -inTexCoord;
+    fragTexCoord = inTexCoord;
 }

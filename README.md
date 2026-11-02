@@ -143,7 +143,6 @@ exception behavior is unchanged.
 - [ ] Score physical devices instead of selecting the first suitable one
 - [ ] Query and enable device features; recover from device and surface loss
 - [ ] MoltenVK portability support (`VK_KHR_portability_enumeration`)
-- [ ] Fall back with a warning when validation layers are unavailable
 
 ### Engine and assets
 
