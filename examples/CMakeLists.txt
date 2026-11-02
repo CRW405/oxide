@@ -4,6 +4,7 @@ set(OXIDE_EXAMPLES
     image_texture
     uniform_buffer
     showcase
+    compute
 )
 
 find_package(cglm CONFIG REQUIRED)

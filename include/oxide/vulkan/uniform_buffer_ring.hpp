@@ -57,10 +57,11 @@ class UniformBufferRing {
 
 	// Bind the descriptor set that belongs to this frame slot.
 	void bind(
-	    VkCommandBuffer  commandBuffer,
-	    VkPipelineLayout pipelineLayout,
-	    std::uint32_t    frameIndex,
-	    std::uint32_t    firstSet = 0) const;
+	    VkCommandBuffer     commandBuffer,
+	    VkPipelineLayout    pipelineLayout,
+	    std::uint32_t       frameIndex,
+	    std::uint32_t       firstSet  = 0,
+	    VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS) const;
 
   private:
 	void checkFrameIndex(std::uint32_t frameIndex) const;

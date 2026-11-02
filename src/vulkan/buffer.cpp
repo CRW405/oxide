@@ -105,6 +105,20 @@ void Buffer::update(const void *data, VkDeviceSize size, VkDeviceSize offset) {
 	vkUnmapMemory(device_.device(), memory_);
 }
 
+void Buffer::read(void *data, VkDeviceSize size, VkDeviceSize offset) const {
+	if (data == nullptr || size == 0 || offset > size_ || size > size_ - offset) {
+		throw invalidArgument("buffer read range is out of bounds");
+	}
+
+	void          *mappedData = nullptr;
+	const VkResult map_result = vkMapMemory(device_.device(), memory_, offset, size, 0, &mappedData);
+	if (map_result != VK_SUCCESS) {
+		throw vkError("map buffer memory for read", map_result);
+	}
+	std::memcpy(data, mappedData, static_cast<std::size_t>(size));
+	vkUnmapMemory(device_.device(), memory_);
+}
+
 // -----------------------------------------------------------------------------
 // Index buffer binding
 // -----------------------------------------------------------------------------

@@ -37,6 +37,7 @@ directory:
 - `examples/image_texture` — textured quad with a sampled image descriptor
 - `examples/uniform_buffer` — rotating quad using model-view-projection uniforms
 - `examples/showcase` — all of the above combined, including input handling and FPS reporting
+- `examples/compute` — a compute dispatch over a storage buffer with host readback
 
 ## Use Case
 
@@ -73,9 +74,9 @@ or through its convenience target:
 cmake --build build --target run_showcase
 ```
 
-The same `run_` prefix works for `triangle`, `sierpinski`, `image_texture`, and
-`uniform_buffer`. Pass `-DOXIDE_BUILD_EXAMPLES=OFF` to configure the library
-without building any examples.
+The same `run_` prefix works for `triangle`, `sierpinski`, `image_texture`,
+`uniform_buffer`, `showcase`, and `compute`. Pass `-DOXIDE_BUILD_EXAMPLES=OFF`
+to configure the library without building any examples.
 
 Vulkan validation layers and Oxide diagnostics are both enabled by default.
 For a lean release build, disable either or both:
@@ -123,22 +124,11 @@ exception behavior is unchanged.
 
 ## TODO
 
-The highest-priority items from [`CODE_REVIEW.md`](CODE_REVIEW.md). That file
-has the full findings, severity levels, and suggested fixes.
-
-### Correctness
-
-- [ ] Add a device-idle guard so resource destructors cannot race in-flight GPU work (C1)
-- [ ] Make `waitForValidFramebufferSize()` respect window close instead of blocking forever (C2)
-- [ ] Expose swapchain recreation so applications can rebuild pipelines after a format change (C3)
-
 ### Rendering
 
 - [ ] MSAA, multiple render targets, and resolve
 - [ ] Offscreen and headless rendering
-- [ ] Compute pipelines (CMake already compiles `.comp` shaders)
 - [ ] Pipeline cache, shader reflection, and specialization constants
-- [ ] Configurable swapchain (present mode, format/HDR, image usage)
 
 ### Performance and resources
 
@@ -153,11 +143,6 @@ has the full findings, severity levels, and suggested fixes.
 - [ ] Query and enable device features; recover from device and surface loss
 - [ ] MoltenVK portability support (`VK_KHR_portability_enumeration`)
 - [ ] Fall back with a warning when validation layers are unavailable
-
-### Packaging and quality
-
-- [ ] Add tests and a CI matrix for validation/logging on and off
-- [ ] Add a LICENSE and formatting/lint configuration
 
 ### Engine and assets
 
@@ -180,6 +165,12 @@ physical device supports for depth-stencil attachments, preferring
 `VK_FORMAT_D32_SFLOAT`. It also handles resize and swapchain recreation. The
 frame loop keeps two frames in flight; `beginFrame()` waits on the current
 slot's fence and returns an empty frame while the swapchain is rebuilt.
+`SwapchainConfig` can request a surface format/color space, present mode, extra
+image usage, or image count; unsupported requests fall back with a warning.
+`swapchainGeneration()` and `setSwapchainRecreatedCallback()` report each
+rebuild, and `SwapchainRecreationInfo::renderPassChanged` tells an application
+when pipelines must be recreated. Minimized-window waits stop when the window is
+closed instead of blocking forever.
 
 Drawing resources follow the same pattern, with one wrapper per Vulkan concept:
 buffers and meshes, images and textures, descriptor layouts/pools/sets, pipeline
@@ -188,10 +179,16 @@ fixed-function state. The descriptor helpers default to the two common
 single-resource interfaces — one combined image sampler or one uniform buffer at
 binding `0`. For data rewritten every frame, `UniformBufferRing` provides one
 buffer and descriptor set per frame slot, so the CPU never overwrites memory the
-GPU may still be reading.
+GPU may still be reading. `ComputePipeline` creates a compute pipeline from one
+`.comp` SPIR-V file and dispatches after binding its descriptor sets.
+
+Declare a `DeviceIdleGuard` after the GPU resources in a scope. It waits for the
+device when destroyed, so resources cannot be released while submitted work is
+still using them, including during exception unwinding.
 
 Buffers currently use host-visible, host-coherent memory, which keeps uploads
-simple. A larger renderer would stage into device-local memory instead.
+simple; `Buffer::read()` copies results back after the device is idle. A larger
+renderer would stage into device-local memory instead.
 
 The project uses C++20, GLFW, Vulkan, and `glslc` or `glslangValidator`. Each
 example keeps its GLSL in `examples/<name>/shaders`; CMake compiles it to SPIR-V
@@ -220,18 +217,20 @@ binaries can run from any working directory.
   `src/vulkan/vulkan_device.cpp` declare `QueueFamilies` and `VulkanDevice` and
   implement instance, device, queue, and memory-type setup.
   `include/oxide/vulkan/vulkan_context.hpp` and
-  `src/vulkan/vulkan_context.cpp` declare `Frame`, `MAX_FRAMES_IN_FLIGHT`, and
-  `VulkanContext` and implement per-window presentation, frame lifecycle, and
-  swapchain recreation. `include/oxide/vulkan/vk_error.hpp` maps `VkResult`
-  values to names and provides `checkVk`, `vkError`, and `logVkFailure`.
+  `src/vulkan/vulkan_context.cpp` declare `Frame`, `MAX_FRAMES_IN_FLIGHT`,
+  `SwapchainConfig`, `SwapchainRecreationInfo`, and `VulkanContext` and
+  implement per-window presentation, frame lifecycle, configurable swapchain
+  creation, and recreation notifications. `DeviceIdleGuard` lives beside
+  `VulkanDevice`. `include/oxide/vulkan/vk_error.hpp` maps `VkResult` values to
+  names and provides `checkVk`, `vkError`, and `logVkFailure`.
 - **Buffers** — `include/oxide/vulkan/buffer.hpp` and `src/vulkan/buffer.cpp`
   declare `Buffer`, `VertexBuffer`, `IndexBuffer`, `UniformBuffer`, and
   `Mesh`, and implement allocation, mapping, upload/update, binding, and
   indexed draws.
 - **Descriptors** — `include/oxide/vulkan/descriptor_set.hpp` and
   `src/vulkan/descriptor_set.cpp` declare `DescriptorBinding`, the
-  `combinedImageSampler()` and `uniformBuffer()` factories, and the
-  `DescriptorSetLayout`, `DescriptorPool`, and `DescriptorSet` wrappers.
+  `combinedImageSampler()`, `uniformBuffer()`, and `storageBuffer()` factories,
+  and the `DescriptorSetLayout`, `DescriptorPool`, and `DescriptorSet` wrappers.
   `ubo_descriptor` and `uniform_buffer_ring` add the single and per-frame UBO
   helpers; `texture_descriptor` owns the layout, pool, and set for an
   `ImageTexture`.
@@ -244,8 +243,9 @@ binaries can run from any working directory.
   `pushConstant<T>()`, `pushConstantRange<T>()`, and `PipelineLayout`, including
   descriptor-set binding. `include/oxide/vulkan/render_pipeline.hpp` and
   `src/vulkan/render_pipeline.cpp` declare `VertexInputDescription`,
-  `PipelineConfigInfo`, and `Pipeline`, with pointer repair for copied configs,
-  `defaultPipelineConfigInfo()`, SPIR-V loading, and pipeline creation.
+  `PipelineConfigInfo`, `Pipeline`, and `ComputePipeline`, with pointer repair
+  for copied configs, `defaultPipelineConfigInfo()`, SPIR-V loading, graphics
+  pipeline creation, and compute pipeline creation/dispatch.
 - **Assets and examples** — `assets/smiley_0.png` is shared by the image and
   showcase examples. Each directory under `examples/` is a standalone program
   with its own `main.cpp` and `shaders/`; the Description above summarizes what
@@ -266,11 +266,15 @@ A program using Oxide normally follows this order:
 9. Begin a render pass and set the viewport and scissor.
 10. Bind pipelines and buffers, then issue draw commands.
 11. End the render pass and call `endFrame()`.
-12. Wait for the device to become idle before resources are destroyed.
+12. Declare a `DeviceIdleGuard` after the GPU resources so the device becomes
+    idle before those resources are destroyed.
 
 If the window changes size, the context recreates the swapchain and the
 resources that depend on it. `beginFrame()` returns an empty frame while that
-work is being done, so the application can skip that iteration.
+work is being done, so the application can skip that iteration. If the surface
+format changes, `SwapchainRecreationInfo::renderPassChanged` is true and graphics
+pipelines built against the old render pass must be recreated; see the showcase
+example's `setSwapchainRecreatedCallback()` handler.
 
 ## Theory
 

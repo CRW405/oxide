@@ -46,6 +46,12 @@ struct DescriptorBinding {
 	return { binding, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stageFlags };
 }
 
+[[nodiscard]] constexpr DescriptorBinding storageBuffer(
+    std::uint32_t      binding    = 0,
+    VkShaderStageFlags stageFlags = VK_SHADER_STAGE_COMPUTE_BIT) noexcept {
+	return { binding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, stageFlags };
+}
+
 // ============================================================================
 // Descriptor set layout
 //
@@ -123,9 +129,10 @@ class DescriptorSet {
 	[[nodiscard]] VkDescriptorSetLayout layout() const noexcept { return layout_; }
 
 	void bind(
-	    VkCommandBuffer commandBuffer,
-	    VkPipelineLayout pipelineLayout,
-	    std::uint32_t   firstSet = 0) const;
+	    VkCommandBuffer     commandBuffer,
+	    VkPipelineLayout    pipelineLayout,
+	    std::uint32_t       firstSet  = 0,
+	    VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS) const;
 
   private:
 	VkDescriptorSetLayout layout_ = VK_NULL_HANDLE;

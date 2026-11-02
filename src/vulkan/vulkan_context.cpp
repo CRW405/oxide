@@ -6,6 +6,7 @@
 #include <limits>
 #include <stdexcept>
 #include <unordered_map>
+#include <utility>
 
 namespace oxide {
 
@@ -33,7 +34,11 @@ void framebufferResizeCallback(GLFWwindow *window, int, int) {
 // record commands into its command buffer, submit them, and present the image.
 // Swapchain recreation replaces only resources that depend on the window size.
 // -----------------------------------------------------------------------------
-VulkanContext::VulkanContext(VulkanDevice &device, Window *window) : device_(device), window_(window) {
+VulkanContext::VulkanContext(
+    VulkanDevice          &device,
+    Window                *window,
+    const SwapchainConfig &config)
+    : device_(device), window_(window), swapchain_config_(config) {
 	// -------------------------------------------------------------------------
 	// Step 1: connect the window callback, create the surface, then build the
 	// presentation resources in dependency order.
@@ -127,32 +132,84 @@ void VulkanContext::createSwapchain() {
 		throw runtimeError("surface does not support a usable swapchain");
 	}
 
-	const auto preferred_format = std::find_if(
-	    support.formats.begin(), support.formats.end(), [](const VkSurfaceFormatKHR &format) {
-		    return format.format == VK_FORMAT_B8G8R8A8_SRGB &&
-		           format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-	    });
+	const bool format_is_undefined =
+	    support.formats.size() == 1 && support.formats.front().format == VK_FORMAT_UNDEFINED;
+
 	VkSurfaceFormatKHR surface_format{};
-	if (preferred_format != support.formats.end()) {
-		surface_format = *preferred_format;
-	} else if (support.formats.size() == 1 &&
-	           support.formats.front().format == VK_FORMAT_UNDEFINED) {
-		// The surface has no preferred format, so the application may choose.
-		surface_format = { VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
-		OXIDE_LOG_INFO << "surface reports VK_FORMAT_UNDEFINED; using B8G8R8A8_SRGB";
-	} else {
-		surface_format = support.formats.front();
-		OXIDE_LOG_WARNING << "preferred surface format B8G8R8A8_SRGB is unavailable; using format "
-		                  << static_cast<int>(surface_format.format);
+	bool               format_selected = false;
+	if (swapchain_config_.surfaceFormat) {
+		const VkSurfaceFormatKHR requested = *swapchain_config_.surfaceFormat;
+		if (format_is_undefined) {
+			// The surface has no preferred format, so the application may choose.
+			surface_format  = requested;
+			format_selected = true;
+			OXIDE_LOG_INFO << "surface reports VK_FORMAT_UNDEFINED; using requested format "
+			               << static_cast<int>(requested.format);
+		} else {
+			const auto requested_format = std::find_if(
+			    support.formats.begin(), support.formats.end(), [&requested](const VkSurfaceFormatKHR &format) {
+				    return format.format == requested.format && format.colorSpace == requested.colorSpace;
+			    });
+			if (requested_format != support.formats.end()) {
+				surface_format  = *requested_format;
+				format_selected = true;
+			} else {
+				OXIDE_LOG_WARNING << "requested swapchain format " << static_cast<int>(requested.format)
+				                  << " with color space " << static_cast<int>(requested.colorSpace)
+				                  << " is unavailable; falling back";
+			}
+		}
 	}
 
-	const auto mailbox = std::find(support.presentModes.begin(), support.presentModes.end(),
-	                               VK_PRESENT_MODE_MAILBOX_KHR);
-	const VkPresentModeKHR present_mode =
-	    mailbox != support.presentModes.end() ? VK_PRESENT_MODE_MAILBOX_KHR : VK_PRESENT_MODE_FIFO_KHR;
-	if (mailbox == support.presentModes.end()) {
-		OXIDE_LOG_INFO << "mailbox present mode is unavailable; using FIFO";
+	if (!format_selected) {
+		const auto preferred_format = std::find_if(
+		    support.formats.begin(), support.formats.end(), [](const VkSurfaceFormatKHR &format) {
+			    return format.format == VK_FORMAT_B8G8R8A8_SRGB &&
+			           format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+		    });
+		if (preferred_format != support.formats.end()) {
+			surface_format = *preferred_format;
+		} else if (format_is_undefined) {
+			surface_format = { VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+			OXIDE_LOG_INFO << "surface reports VK_FORMAT_UNDEFINED; using B8G8R8A8_SRGB";
+		} else {
+			surface_format = support.formats.front();
+			OXIDE_LOG_WARNING << "preferred surface format B8G8R8A8_SRGB is unavailable; using format "
+			                  << static_cast<int>(surface_format.format);
+		}
 	}
+
+	VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
+	if (swapchain_config_.presentMode) {
+		const VkPresentModeKHR requested = *swapchain_config_.presentMode;
+		if (std::find(support.presentModes.begin(), support.presentModes.end(), requested) !=
+		    support.presentModes.end()) {
+			present_mode = requested;
+		} else {
+			OXIDE_LOG_WARNING << "requested present mode " << static_cast<int>(requested)
+			                  << " is unavailable; using FIFO";
+		}
+	} else {
+		const auto mailbox = std::find(support.presentModes.begin(), support.presentModes.end(),
+		                               VK_PRESENT_MODE_MAILBOX_KHR);
+		if (mailbox != support.presentModes.end()) {
+			present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
+		} else {
+			OXIDE_LOG_INFO << "mailbox present mode is unavailable; using FIFO";
+		}
+	}
+	swapchain_present_mode_ = present_mode;
+
+	// Rendering always needs the color attachment usage; other usages are
+	// requested by the application when it needs a screenshot or copy source.
+	VkImageUsageFlags image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | swapchain_config_.imageUsage;
+	if ((support.capabilities.supportedUsageFlags & image_usage) != image_usage) {
+		OXIDE_LOG_WARNING << "requested swapchain image usage " << image_usage
+		                  << " is unsupported (" << support.capabilities.supportedUsageFlags
+		                  << "); using COLOR_ATTACHMENT only";
+		image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	}
+	swapchain_image_usage_ = image_usage;
 
 	// Wayland composites the surface using its alpha channel only when the
 	// surface is not marked opaque. Prefer pre-multiplied alpha because it is
@@ -192,9 +249,21 @@ void VulkanContext::createSwapchain() {
 		};
 	}
 
-	std::uint32_t image_count = support.capabilities.minImageCount + 1;
-	if (support.capabilities.maxImageCount > 0) {
-		image_count = std::min(image_count, support.capabilities.maxImageCount);
+	const bool    explicit_image_count = swapchain_config_.imageCount != 0;
+	std::uint32_t image_count =
+	    explicit_image_count ? swapchain_config_.imageCount : support.capabilities.minImageCount + 1;
+	const std::uint32_t max_image_count = support.capabilities.maxImageCount == 0
+	                                          ? std::numeric_limits<std::uint32_t>::max()
+	                                          : support.capabilities.maxImageCount;
+	const std::uint32_t clamped_image_count =
+	    std::clamp(image_count, support.capabilities.minImageCount, max_image_count);
+	if (clamped_image_count != image_count) {
+		if (explicit_image_count) {
+			OXIDE_LOG_WARNING << "requested swapchain image count " << image_count
+			                  << " is outside the supported range [" << support.capabilities.minImageCount
+			                  << ", " << max_image_count << "]; using " << clamped_image_count;
+		}
+		image_count = clamped_image_count;
 	}
 
 	const bool               separate_queues  = queues.graphics != queues.present;
@@ -207,7 +276,7 @@ void VulkanContext::createSwapchain() {
 	info.imageColorSpace       = surface_format.colorSpace;
 	info.imageExtent           = swapchain_extent_;
 	info.imageArrayLayers      = 1;
-	info.imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	info.imageUsage            = image_usage;
 	info.imageSharingMode      = separate_queues ? VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE;
 	info.queueFamilyIndexCount = separate_queues ? 2 : 0;
 	info.pQueueFamilyIndices   = separate_queues ? queue_families : nullptr;
@@ -551,15 +620,26 @@ void VulkanContext::destroyWindowResources() noexcept {
 	destroySwapchain();
 }
 
-void VulkanContext::waitForValidFramebufferSize() const {
+bool VulkanContext::waitForValidFramebufferSize() const {
 	// Minimized windows report zero size and cannot create a usable swapchain.
+	// Stop waiting when the window is closed so teardown can proceed instead of
+	// blocking forever with no further events to wake the loop.
 	int width  = 0;
 	int height = 0;
-	glfwGetFramebufferSize(window_->handle(), &width, &height);
-	while (width == 0 || height == 0) {
+	while (true) {
 		glfwGetFramebufferSize(window_->handle(), &width, &height);
+		if (width > 0 && height > 0) {
+			return true;
+		}
+		if (window_->shouldClose()) {
+			return false;
+		}
 		glfwWaitEvents();
 	}
+}
+
+void VulkanContext::setSwapchainRecreatedCallback(SwapchainRecreatedCallback callback) {
+	swapchain_recreated_callback_ = std::move(callback);
 }
 
 void VulkanContext::recreateSwapchain() {
@@ -570,16 +650,20 @@ void VulkanContext::recreateSwapchain() {
 	if (device_.device() == VK_NULL_HANDLE) {
 		return;
 	}
-	waitForValidFramebufferSize();
+	if (!waitForValidFramebufferSize()) {
+		OXIDE_LOG_INFO << "window is closing; skipping swapchain recreation";
+		return;
+	}
 	checkVk(vkDeviceWaitIdle(device_.device()), "wait for Vulkan device before recreating swapchain");
 	const VkFormat old_format = swapchain_format_;
 	destroySwapchain(false);
 	createSwapchain();
 	createDepthResources();
-	if (swapchain_format_ != old_format) {
+	const bool render_pass_changed = swapchain_format_ != old_format;
+	if (render_pass_changed) {
 		OXIDE_LOG_WARNING << "swapchain format changed (" << static_cast<int>(old_format) << " -> "
 		                  << static_cast<int>(swapchain_format_)
-		                  << "); pipelines created for the old render pass may be invalid";
+		                  << "); pipelines created for the old render pass must be recreated";
 		if (render_pass_ != VK_NULL_HANDLE) {
 			vkDestroyRenderPass(device_.device(), render_pass_, nullptr);
 			render_pass_ = VK_NULL_HANDLE;
@@ -598,6 +682,17 @@ void VulkanContext::recreateSwapchain() {
 	for (VkSemaphore &signal : render_finished_) {
 		checkVk(vkCreateSemaphore(device_.device(), &semaphore, nullptr, &signal),
 		        "recreate render-finished semaphore");
+	}
+
+	++swapchain_generation_;
+	if (swapchain_recreated_callback_) {
+		swapchain_recreated_callback_(SwapchainRecreationInfo{
+		    render_pass_,
+		    swapchain_format_,
+		    swapchain_extent_,
+		    render_pass_changed,
+		    swapchain_generation_,
+		});
 	}
 }
 

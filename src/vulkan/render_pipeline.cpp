@@ -8,6 +8,55 @@
 
 namespace oxide {
 
+namespace {
+
+std::vector<char> readShaderFile(const std::string &filepath) {
+	// Shader binaries are read as raw bytes for VkShaderModule creation.
+	std::ifstream file(filepath, std::ios::ate | std::ios::binary);
+
+	if (!file.is_open()) {
+		throw runtimeError("failed to open shader file: " + filepath);
+	}
+
+	const std::streampos end = file.tellg();
+	if (end == std::streampos(-1)) {
+		throw runtimeError("failed to determine shader file size: " + filepath);
+	}
+	const auto file_size = static_cast<std::size_t>(end);
+	if (file_size == 0) {
+		throw runtimeError("shader file is empty: " + filepath);
+	}
+	if (file_size % 4 != 0) {
+		throw runtimeError("shader file size is not a multiple of 4 bytes: " + filepath);
+	}
+
+	std::vector<char> buffer(file_size);
+	file.seekg(0);
+	if (!file.read(buffer.data(), static_cast<std::streamsize>(file_size))) {
+		throw runtimeError("failed to read shader file: " + filepath);
+	}
+
+	return buffer;
+}
+
+VkShaderModule createShaderModule(
+    VulkanDevice            &device,
+    const std::vector<char> &code,
+    const std::string       &filepath) {
+	// Vulkan consumes SPIR-V as 32-bit words even though files are byte streams.
+	VkShaderModuleCreateInfo create_info{};
+	create_info.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	create_info.codeSize = code.size();
+	create_info.pCode    = reinterpret_cast<const std::uint32_t *>(code.data());
+
+	VkShaderModule module = VK_NULL_HANDLE;
+	checkVk(vkCreateShaderModule(device.device(), &create_info, nullptr, &module),
+	        "create shader module for " + filepath);
+	return module;
+}
+
+} // namespace
+
 // -----------------------------------------------------------------------------
 // Vertex input and graphics pipeline setup
 // -----------------------------------------------------------------------------
@@ -163,12 +212,12 @@ Pipeline::Pipeline(
 	// Step 1: load shader bytecode and create temporary shader modules. The
 	// modules are needed only while the graphics pipeline is being built.
 	// -------------------------------------------------------------------------
-	auto vertCode = readFile(vertFilepath);
-	auto fragCode = readFile(fragFilepath);
+	auto vertCode = readShaderFile(vertFilepath);
+	auto fragCode = readShaderFile(fragFilepath);
 
 	try {
-		createShaderModule(vertCode, &vertShaderModule_, vertFilepath);
-		createShaderModule(fragCode, &fragShaderModule_, fragFilepath);
+		vertShaderModule_ = createShaderModule(device_, vertCode, vertFilepath);
+		fragShaderModule_ = createShaderModule(device_, fragCode, fragFilepath);
 
 		if (configInfo.pipelineLayout == VK_NULL_HANDLE) {
 			// Use an empty layout until descriptors or push constants are needed.
@@ -296,47 +345,88 @@ void Pipeline::drawIndexed(
 	                 firstInstance);
 }
 
-std::vector<char> Pipeline::readFile(const std::string &filepath) {
-	// Shader binaries are read as raw bytes for VkShaderModule creation.
-	std::ifstream file(filepath, std::ios::ate | std::ios::binary);
+// -----------------------------------------------------------------------------
+// Compute pipeline creation
+// -----------------------------------------------------------------------------
+ComputePipeline::ComputePipeline(
+    VulkanDevice      &device,
+    const std::string &compFilepath,
+    VkPipelineLayout   layout)
+    : device_(device) {
+	const auto code = readShaderFile(compFilepath);
 
-	if (!file.is_open()) {
-		throw runtimeError("failed to open shader file: " + filepath);
-	}
+	VkShaderModule module = VK_NULL_HANDLE;
+	try {
+		module = createShaderModule(device_, code, compFilepath);
 
-	const std::streampos end = file.tellg();
-	if (end == std::streampos(-1)) {
-		throw runtimeError("failed to determine shader file size: " + filepath);
-	}
-	const auto        fileSize = static_cast<size_t>(end);
-	if (fileSize == 0) {
-		throw runtimeError("shader file is empty: " + filepath);
-	}
-	if (fileSize % 4 != 0) {
-		throw runtimeError("shader file size is not a multiple of 4 bytes: " + filepath);
-	}
+		if (layout == VK_NULL_HANDLE) {
+			VkPipelineLayoutCreateInfo layout_info{};
+			layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+			checkVk(vkCreatePipelineLayout(device_.device(), &layout_info, nullptr, &layout_),
+			        "create compute pipeline layout");
+			owns_layout_ = true;
+		} else {
+			layout_ = layout;
+		}
 
-	std::vector<char> buffer(fileSize);
-	file.seekg(0);
-	if (!file.read(buffer.data(), static_cast<std::streamsize>(fileSize))) {
-		throw runtimeError("failed to read shader file: " + filepath);
-	}
+		VkComputePipelineCreateInfo pipeline_info{};
+		pipeline_info.sType        = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		pipeline_info.stage.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		pipeline_info.stage.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
+		pipeline_info.stage.module = module;
+		pipeline_info.stage.pName  = "main";
+		pipeline_info.layout       = layout_;
+		pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
+		pipeline_info.basePipelineIndex  = -1;
 
-	return buffer;
+		checkVk(vkCreateComputePipelines(device_.device(), VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline_),
+		        "create compute pipeline");
+
+		vkDestroyShaderModule(device_.device(), module, nullptr);
+	} catch (...) {
+		if (module != VK_NULL_HANDLE) {
+			vkDestroyShaderModule(device_.device(), module, nullptr);
+		}
+		if (owns_layout_ && layout_ != VK_NULL_HANDLE) {
+			vkDestroyPipelineLayout(device_.device(), layout_, nullptr);
+			layout_      = VK_NULL_HANDLE;
+			owns_layout_ = false;
+		}
+		throw;
+	}
 }
 
-void Pipeline::createShaderModule(
-    const std::vector<char> &code,
-    VkShaderModule          *shaderModule,
-    const std::string       &filepath) {
-	// Vulkan consumes SPIR-V as 32-bit words even though files are byte streams.
-	VkShaderModuleCreateInfo createInfo{};
-	createInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.codeSize = code.size();
-	createInfo.pCode    = reinterpret_cast<const uint32_t *>(code.data());
+ComputePipeline::~ComputePipeline() {
+	if (device_.device() != VK_NULL_HANDLE) {
+		if (pipeline_ != VK_NULL_HANDLE) {
+			vkDestroyPipeline(device_.device(), pipeline_, nullptr);
+		}
+		if (owns_layout_ && layout_ != VK_NULL_HANDLE) {
+			vkDestroyPipelineLayout(device_.device(), layout_, nullptr);
+		}
+	}
+}
 
-	checkVk(vkCreateShaderModule(device_.device(), &createInfo, nullptr, shaderModule),
-	        "create shader module for " + filepath);
+ComputePipeline::ComputePipeline(ComputePipeline &&other) noexcept
+    : device_(other.device_),
+      pipeline_(other.pipeline_),
+      layout_(other.layout_),
+      owns_layout_(other.owns_layout_) {
+	other.pipeline_    = VK_NULL_HANDLE;
+	other.layout_      = VK_NULL_HANDLE;
+	other.owns_layout_ = false;
+}
+
+void ComputePipeline::bind(VkCommandBuffer commandBuffer) const {
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_);
+}
+
+void ComputePipeline::dispatch(
+    VkCommandBuffer commandBuffer,
+    std::uint32_t   groupCountX,
+    std::uint32_t   groupCountY,
+    std::uint32_t   groupCountZ) const noexcept {
+	vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
 }
 
 PipelineConfigInfo Pipeline::defaultPipelineConfigInfo() {

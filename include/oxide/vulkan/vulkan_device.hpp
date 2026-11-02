@@ -44,6 +44,10 @@ class VulkanDevice {
 	[[nodiscard]] std::uint32_t    findMemoryType(std::uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
 	void                           waitIdle() const;
 
+	// Wait for the device without throwing. Intended for destructors and other
+	// cleanup paths where an exception would terminate the process.
+	void waitIdleNoThrow() const noexcept;
+
   private:
 	void createInstance(const std::string app_name);
 	void setupDebugMessenger();
@@ -59,6 +63,35 @@ class VulkanDevice {
 	VkQueue          present_queue_   = VK_NULL_HANDLE;
 	VkCommandPool    command_pool_    = VK_NULL_HANDLE;
 	VkDebugUtilsMessengerEXT debug_messenger_ = VK_NULL_HANDLE;
+};
+
+// ============================================================================
+// Device-idle scope guard
+//
+// Waits for the device to become idle when the guard is destroyed. Declare it
+// after every GPU resource in a scope so it is destroyed first, including when
+// the scope exits with an exception. That ensures resource destructors never
+// release objects that in-flight work still references.
+//
+//   VulkanDevice device(...);
+//   {
+//       Buffer buffer(device, ...);
+//       DeviceIdleGuard idle(device); // destroyed before buffer
+//       ...
+//   }
+// ============================================================================
+class DeviceIdleGuard {
+  public:
+	explicit DeviceIdleGuard(const VulkanDevice &device) noexcept : device_(device) {}
+	~DeviceIdleGuard() noexcept { device_.waitIdleNoThrow(); }
+
+	DeviceIdleGuard(const DeviceIdleGuard &)            = delete;
+	DeviceIdleGuard &operator=(const DeviceIdleGuard &) = delete;
+	DeviceIdleGuard(DeviceIdleGuard &&)                 = delete;
+	DeviceIdleGuard &operator=(DeviceIdleGuard &&)      = delete;
+
+  private:
+	const VulkanDevice &device_;
 };
 
 }

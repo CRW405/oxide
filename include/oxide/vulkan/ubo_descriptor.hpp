@@ -47,10 +47,11 @@ class UBODescriptorSet {
 
 	// Bind this set through a pipeline layout that uses layout().
 	void bind(
-	    VkCommandBuffer  commandBuffer,
-	    VkPipelineLayout pipelineLayout,
-	    std::uint32_t    firstSet = 0) const {
-		set_.bind(commandBuffer, pipelineLayout, firstSet);
+	    VkCommandBuffer     commandBuffer,
+	    VkPipelineLayout    pipelineLayout,
+	    std::uint32_t       firstSet  = 0,
+	    VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS) const {
+		set_.bind(commandBuffer, pipelineLayout, firstSet, bindPoint);
 	}
 
   private:

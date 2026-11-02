@@ -28,6 +28,10 @@ class Buffer {
 	void                       bind(VkCommandBuffer commandBuffer, std::uint32_t binding = 0) const;
 	void                       update(const void *data, VkDeviceSize size, VkDeviceSize offset = 0);
 
+	// Copy data back out of a host-visible buffer after the GPU work that wrote
+	// it has completed (for example after VulkanDevice::waitIdle()).
+	void read(void *data, VkDeviceSize size, VkDeviceSize offset = 0) const;
+
 	// Upload one typed value without repeating its size at the call site.
 	template <typename T>
 	void update(const T &data, VkDeviceSize offset = 0) {

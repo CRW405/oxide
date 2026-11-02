@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <memory>
 #include <vector>
 
 // -----------------------------------------------------------------------------
@@ -52,7 +53,14 @@ int main() {
 		oxide::GLFWContext   glfw;
 		oxide::Window        window({ 900, 650, app_name, true });
 		oxide::VulkanDevice  device(window.handle(), app_name);
-		oxide::VulkanContext vulkan(device, &window);
+
+		// Request a specific present mode and allow the swapchain images to be
+		// used as a transfer source for screenshots. Unsupported requests fall
+		// back with a warning instead of failing startup.
+		oxide::SwapchainConfig swapchain_config;
+		swapchain_config.presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+		swapchain_config.imageUsage  = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+		oxide::VulkanContext vulkan(device, &window, swapchain_config);
 
 		// The context owns the surface, swapchain, render pass, framebuffers, and
 		// frame synchronization. These getters expose the presentation state.
@@ -122,10 +130,28 @@ int main() {
 		    .setRenderPass(vulkan.renderPass())
 		    .setPipelineLayout(pipeline_layout.handle());
 
-		oxide::Pipeline pipeline(device,
-		                         OXIDE_SHADER_DIR "/showcase.vert.spv",
-		                         OXIDE_SHADER_DIR "/showcase.frag.spv",
-		                         pipeline_config);
+		auto pipeline = std::make_unique<oxide::Pipeline>(device,
+		                                                  OXIDE_SHADER_DIR "/showcase.vert.spv",
+		                                                  OXIDE_SHADER_DIR "/showcase.frag.spv",
+		                                                  pipeline_config);
+
+		// The render pass is destroyed when the surface format changes, which
+		// invalidates every pipeline built against it. Rebuild the pipeline from
+		// the same config with the new render pass. The device is idle here.
+		vulkan.setSwapchainRecreatedCallback([&](const oxide::SwapchainRecreationInfo &info) {
+			if (!info.renderPassChanged) {
+				return;
+			}
+			pipeline_config.setRenderPass(info.renderPass);
+			pipeline = std::make_unique<oxide::Pipeline>(device,
+			                                             OXIDE_SHADER_DIR "/showcase.vert.spv",
+			                                             OXIDE_SHADER_DIR "/showcase.frag.spv",
+			                                             pipeline_config);
+		});
+
+		// Declared after the GPU resources so it is destroyed first, including on
+		// exception unwinding from the render loop.
+		oxide::DeviceIdleGuard idle_guard(device);
 
 		// -------------------------------------------------------------------------
 		// Application state used by the controls below.
@@ -235,7 +261,7 @@ int main() {
 			texture_descriptor.bind(frame.commandBuffer, pipeline_layout.handle(), 0);
 			uniform_buffers.bind(frame.commandBuffer, pipeline_layout.handle(), frame.frameIndex, 1);
 
-			pipeline.bind(frame.commandBuffer);
+			pipeline->bind(frame.commandBuffer);
 			vulkan.setViewportAndScissor(frame.commandBuffer);
 
 			pipeline_layout.pushConstant(frame.commandBuffer, push_constant, push);
@@ -248,7 +274,6 @@ int main() {
 		}
 
 		fps.finish();
-		device.waitIdle();
 	} catch (const std::exception &error) {
 		OXIDE_LOG_FATAL << "unhandled exception: " << error.what();
 		return 1;

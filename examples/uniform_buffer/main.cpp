@@ -75,6 +75,10 @@ int main() {
 		                          OXIDE_SHADER_DIR "/ubo.frag.spv",
 		                          pipeline_Config);
 
+		// Declared after the GPU resources so it is destroyed first, including on
+		// exception unwinding from the render loop.
+		oxide::DeviceIdleGuard idle_guard(device);
+
 		while (!window.shouldClose()) {
 			window.pollEvents();
 			if (window.keyPressed(GLFW_KEY_ESCAPE) || window.keyPressed(GLFW_KEY_Q)) {
@@ -117,7 +121,6 @@ int main() {
 			vulkan.endRenderPass(frame);
 			vulkan.endFrame(frame);
 		}
-		device.waitIdle();
 
 	} catch (const std::exception &error) {
 		OXIDE_LOG_FATAL << "unhandled exception: " << error.what();

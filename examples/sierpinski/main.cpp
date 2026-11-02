@@ -36,6 +36,10 @@ int main() {
 		                          OXIDE_SHADER_DIR "/sierpinski_triangle.frag.spv",
 		                          pipelineConfig);
 
+		// Declared after the GPU resources so it is destroyed first, including on
+		// exception unwinding from the render loop.
+		oxide::DeviceIdleGuard idle_guard(device);
+
 		// "globals"
 		Camera camera{ 0, 1.0f, 1.0f };
 
@@ -89,7 +93,6 @@ int main() {
 			fps.update(window.time());
 		}
 		fps.finish();
-		device.waitIdle();
 	} catch (const std::exception &error) {
 		OXIDE_LOG_FATAL << "unhandled exception: " << error.what();
 		return 1;

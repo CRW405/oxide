@@ -178,6 +178,12 @@ void VulkanDevice::waitIdle() const {
 	}
 }
 
+void VulkanDevice::waitIdleNoThrow() const noexcept {
+	if (device_ != VK_NULL_HANDLE) {
+		logVkFailure(vkDeviceWaitIdle(device_), "wait for Vulkan device");
+	}
+}
+
 void VulkanDevice::createInstance(const std::string app_name) {
 	// -------------------------------------------------------------------------
 	// Step 1: verify development layers and gather the extensions required by

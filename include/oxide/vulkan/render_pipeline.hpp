@@ -109,18 +109,51 @@ class Pipeline {
 	static PipelineConfigInfo defaultPipelineConfigInfo();
 
   private:
-	static std::vector<char> readFile(const std::string &filepath);
-	void                     createShaderModule(
-	        const std::vector<char> &code,
-	        VkShaderModule          *shaderModule,
-	        const std::string       &filepath);
-
 	VulkanDevice    &device_;
 	VkPipeline       pipeline_         = VK_NULL_HANDLE;
 	VkPipelineLayout layout_           = VK_NULL_HANDLE;
 	VkShaderModule   vertShaderModule_ = VK_NULL_HANDLE;
 	VkShaderModule   fragShaderModule_ = VK_NULL_HANDLE;
 	bool             owns_layout_      = false;
+};
+
+// ============================================================================
+// Compute pipeline
+//
+// Builds a compute pipeline from one SPIR-V file. Pass a PipelineLayout when
+// the shader uses descriptors or push constants; otherwise the pipeline owns an
+// empty layout. Dispatch after binding the pipeline and any descriptor sets.
+// ============================================================================
+class ComputePipeline {
+  public:
+	ComputePipeline(
+	    VulkanDevice      &device,
+	    const std::string &compFilepath,
+	    VkPipelineLayout   layout = VK_NULL_HANDLE);
+
+	~ComputePipeline();
+
+	ComputePipeline(const ComputePipeline &)            = delete;
+	ComputePipeline &operator=(const ComputePipeline &) = delete;
+
+	ComputePipeline(ComputePipeline &&) noexcept;
+	ComputePipeline &operator=(ComputePipeline &&) = delete;
+
+	void bind(VkCommandBuffer commandBuffer) const;
+	void dispatch(
+	    VkCommandBuffer commandBuffer,
+	    std::uint32_t   groupCountX = 1,
+	    std::uint32_t   groupCountY = 1,
+	    std::uint32_t   groupCountZ = 1) const noexcept;
+
+	[[nodiscard]] VkPipeline       pipeline() const noexcept { return pipeline_; }
+	[[nodiscard]] VkPipelineLayout layout() const noexcept { return layout_; }
+
+  private:
+	VulkanDevice    &device_;
+	VkPipeline       pipeline_    = VK_NULL_HANDLE;
+	VkPipelineLayout layout_      = VK_NULL_HANDLE;
+	bool             owns_layout_ = false;
 };
 
 }

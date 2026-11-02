@@ -95,11 +95,12 @@ DescriptorSet::DescriptorSet(DescriptorPool &pool, VkDescriptorSetLayout layout)
 }
 
 void DescriptorSet::bind(
-    VkCommandBuffer commandBuffer,
-    VkPipelineLayout pipelineLayout,
-    std::uint32_t   firstSet) const {
+    VkCommandBuffer     commandBuffer,
+    VkPipelineLayout    pipelineLayout,
+    std::uint32_t       firstSet,
+    VkPipelineBindPoint bindPoint) const {
 	vkCmdBindDescriptorSets(commandBuffer,
-	                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+	                        bindPoint,
 	                        pipelineLayout,
 	                        firstSet,
 	                        1,

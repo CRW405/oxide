@@ -74,6 +74,10 @@ int main() {
 		oxide::Mesh                     triangle_mesh(device, vulkan_triangle, triangle_indices);
 		std::printf("Vertex buffer created with size: %zu bytes\n", sizeof(simple_vertex) * vulkan_triangle.size());
 
+		// Declared after the GPU resources so it is destroyed first. On exception
+		// unwinding this waits for the device before those resources are released.
+		oxide::DeviceIdleGuard idle_guard(device);
+
 		// -------------------------------------------------------------------------
 		// Step 4: acquire, record, submit, and present one frame at a time.
 		// beginFrame returns an empty frame when the swapchain was recreated.
@@ -118,9 +122,9 @@ int main() {
 			fps.update(window.time());
 		}
 
-		// Leave the cursor on a fresh line once the loop exits.
+		// Leave the cursor on a fresh line once the loop exits. The idle guard
+		// waits for the device before the resources above are destroyed.
 		fps.finish();
-		device.waitIdle(); // Wait for the device to finish before tearing down the context and window
 	} catch (const std::exception &error) {
 		OXIDE_LOG_FATAL << "unhandled exception: " << error.what();
 		return 1;

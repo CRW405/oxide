@@ -60,14 +60,15 @@ void UniformBufferRing::update(std::uint32_t frameIndex, const void *data, VkDev
 }
 
 void UniformBufferRing::bind(
-    VkCommandBuffer  commandBuffer,
-    VkPipelineLayout pipelineLayout,
-    std::uint32_t    frameIndex,
-    std::uint32_t    firstSet) const {
+    VkCommandBuffer     commandBuffer,
+    VkPipelineLayout    pipelineLayout,
+    std::uint32_t       frameIndex,
+    std::uint32_t       firstSet,
+    VkPipelineBindPoint bindPoint) const {
 	const VkDescriptorSet set = descriptorSet(frameIndex);
 	vkCmdBindDescriptorSets(
 	    commandBuffer,
-	    VK_PIPELINE_BIND_POINT_GRAPHICS,
+	    bindPoint,
 	    pipelineLayout,
 	    firstSet,
 	    1,
