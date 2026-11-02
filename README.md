@@ -142,13 +142,17 @@ exception behavior is unchanged.
 
 - [ ] Score physical devices instead of selecting the first suitable one
 - [ ] Query and enable device features; recover from device and surface loss
-- [ ] MoltenVK portability support (`VK_KHR_portability_enumeration`)
 
 ### Engine and assets
 
 - [ ] OBJ reader
 - [ ] GLTF reader
 - [ ] DOD Refactor
+
+### Other
+
+- [ ] Redo examples
+- [ ] Make compute pipeline not require a window or other graphics resources
 
 ## Technical overview
 
