@@ -51,14 +51,14 @@ void main() {
     vec2 r = vec2(fbm(st + 4.0 * q + time * 0.1), fbm(st + 4.0 * q + vec2(1.8, 2.5) - time * 0.15));
     float smokeNoise = fbm(st + 2.5 * r);
 
-    vec3 voidBlack   = vec3(0.0, 0.0, 0.0);
-    vec3 ashGrey     = vec3(0.1, 0.1, 0.1);
-    vec3 hissRed     = vec3(1.0, 0.0, 0.0);
+    vec3 black = vec3(0.0, 0.0, 0.0);
+    vec3 grey = vec3(0.1, 0.1, 0.1);
+    vec3 red = vec3(1.0, 0.0, 0.0);
 
-    vec3 color = mix(voidBlack, ashGrey, clamp(smokeNoise * 1.5, 0.0, 1.0));
+    vec3 color = mix(black, grey, clamp(smokeNoise * 1.5, 0.0, 1.0));
 
     float redIntensity = smoothstep(0.35, 0.8, smokeNoise);
-    color = mix(color, hissRed, redIntensity);
+    color = mix(color, red, redIntensity);
 
     outColor = vec4(color, 1.0);
 }
