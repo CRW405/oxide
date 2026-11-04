@@ -5,6 +5,7 @@ set(OXIDE_EXAMPLES
     uniform_buffer
     showcase
     compute
+    hiss
 )
 
 find_package(cglm CONFIG REQUIRED)
