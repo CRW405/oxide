@@ -54,17 +54,11 @@ void main() {
     vec3 voidBlack   = vec3(0.0, 0.0, 0.0);
     vec3 ashGrey     = vec3(0.1, 0.1, 0.1);
     vec3 hissRed     = vec3(1.0, 0.0, 0.0);
-    vec3 coreHot     = vec3(1.00, 0.1, 0.1);
 
     vec3 color = mix(voidBlack, ashGrey, clamp(smokeNoise * 1.5, 0.0, 1.0));
 
     float redIntensity = smoothstep(0.35, 0.8, smokeNoise);
     color = mix(color, hissRed, redIntensity);
-
-    float pulse = sin(time * 4.0 + fragPos.z * 2.0) * 0.5 + 0.5;
-    if (smokeNoise > 0.55 && pulse > 0.6) {
-        color = mix(color, coreHot, pulse * 0.7);
-    }
 
     outColor = vec4(color, 1.0);
 }

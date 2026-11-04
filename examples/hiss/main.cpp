@@ -113,7 +113,7 @@ int main() {
 		vec3 rotationAxis = { 0.7f, 1.0f, 0.2f };
 		glm_rotate(camera.model, static_cast<float>(currentTime * 0.2), rotationAxis);
 
-		vec3 eye    = { 0.0f, 0.0f, 3.5f };
+		vec3 eye    = { 0.0f, 0.0f, 5.0f };
 		vec3 center = { 0.0f, 0.0f, 0.0f };
 		vec3 up     = { 0.0f, 1.0f, 0.0f };
 		glm_lookat(eye, center, up, camera.view);
