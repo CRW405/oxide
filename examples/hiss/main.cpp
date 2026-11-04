@@ -24,7 +24,7 @@ struct Vertex {
 int main() {
 	// lib setup
 	oxide::GLFWContext     glfw;
-	oxide::Window          window({ 500, 500, "Control Hiss Shader", true });
+	oxide::Window          window({ 800, 600, "Control Hiss Shader", true });
 	oxide::VulkanDevice    device(window.handle(), "Control Hiss Shader");
 	oxide::VulkanContext   vulkan(device, &window);
 	oxide::DeviceIdleGuard idleGuard(device);
@@ -78,12 +78,12 @@ int main() {
 	                         OXIDE_SHADER_DIR "/hiss.frag.spv",
 	                         pipelineConfig);
 
-	double dTime = 0.0;
+	double previousTime = window.time();
 
 	while (!window.shouldClose()) {
 		window.pollEvents();
 
-		if (window.isKeyPressed(GLFW_KEY_ESCAPE)) {
+		if (window.keyPressed(GLFW_KEY_ESCAPE)) {
 			glfwSetWindowShouldClose(window.handle(), GLFW_TRUE);
 		}
 
@@ -93,18 +93,23 @@ int main() {
 		}
 
 		double currentTime = window.time();
-		dTime              = currentTime - dTime;
+		double dTime       = currentTime - previousTime;
+		previousTime       = currentTime;
+
 		glm_mat4_identity(camera.model);
-		vec3 rotationAxis = { 1.0f, 1.0f, 0.0f };
-		glm_rotate(camera.model, static_cast<float>(currentTime), rotationAxis);
-		vec3 eye    = { 0.0f, 0.0f, 3.0f };
+		vec3 rotationAxis = { 0.7f, 1.0f, 0.2f };
+		glm_rotate(camera.model, static_cast<float>(currentTime * 0.8), rotationAxis);
+
+		vec3 eye    = { 0.0f, 0.0f, 3.5f };
 		vec3 center = { 0.0f, 0.0f, 0.0f };
 		vec3 up     = { 0.0f, 1.0f, 0.0f };
 		glm_lookat(eye, center, up, camera.view);
-		floar aspect_ratio = static_cast<float>(vulkan.extent().width) / static_cast<float>(vulkan.extent().height);
+
+		float aspect_ratio = static_cast<float>(vulkan.extent().width) / static_cast<float>(vulkan.extent().height);
 		glm_perspective(glm_rad(45.0f), aspect_ratio, 0.1f, 100.0f, camera.projection);
-		camera.projection[1][1] *= -1.0f;
-		cameraBuffer.update(frame, camera);
+		camera.projection[1][1] *= -1.0f; // Vulkan Y-flip
+
+		cameraBuffer.update(frame.frameIndex, camera);
 
 		vulkan.beginRenderPass(frame);
 		cubeMesh.bind(frame.commandBuffer);
