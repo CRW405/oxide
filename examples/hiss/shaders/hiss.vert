@@ -16,10 +16,10 @@ layout(binding=0) uniform CameraUBO {
 void main() {
     fragColor = inColor;
 
-    vec4 worldPos = camera.model * vec4(inPos, 1.0);
-    fragPos = worldPos.xyz;
+    vec4 viewPos = camera.view * camera.model * vec4(inPos, 1.0);
+    fragPos = viewPos.xyz;
 
-    fragNormal = mat3(camera.model) * inPos;
+    fragNormal = mat3(camera.view * camera.model) * inPos;
 
-    gl_Position = camera.projection * camera.view * worldPos;
+    gl_Position = camera.projection * viewPos;
 }

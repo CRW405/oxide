@@ -2,6 +2,7 @@
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec3 fragPos;
+layout(location = 2) in vec3 fragNormal;
 
 layout(location = 0) out vec4 outColor;
 
@@ -43,7 +44,8 @@ float fbm(vec2 st) {
 }
 
 void main() {
-    vec2 st = fragPos.xy * 1.2 + fragPos.zz * 0.5;
+    vec3 n = normalize(fragNormal);
+    vec2 st = (fragPos.xy * 0.8) + (n.xy * 0.4);
 
     float time = pc.time * 1.5;
 
@@ -52,8 +54,8 @@ void main() {
     float smokeNoise = fbm(st + 2.5 * r);
 
     vec3 black = vec3(0.0, 0.0, 0.0);
-    vec3 grey = vec3(0.1, 0.1, 0.1);
-    vec3 red = vec3(1.0, 0.0, 0.0);
+    vec3 grey  = vec3(0.1, 0.1, 0.1);
+    vec3 red   = vec3(1.0, 0.0, 0.0);
 
     vec3 color = mix(black, grey, clamp(smokeNoise * 1.5, 0.0, 1.0));
 
