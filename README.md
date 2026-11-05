@@ -39,6 +39,7 @@ directory:
 - `examples/sierpinski` — A fragment-shader fractal driven by push constants
 - `examples/hiss` — Animated cube using a per-frame UBO and push constants meant to copy Control's hiss liquidy effect. Smoke effect coming soon.
 - `examples/multiple_pipelines` — Two graphics shader pairs plus a compute pass sharing one device and frame
+- `examples/crt_scene` — A textured scene with primitives and a CRT monitor effect
 
 ## Use Case
 
@@ -110,6 +111,13 @@ Detailed diagnostics, backend architecture, file mapping, and graphics/Vulkan ba
 - Shader reflection and specialization constants
 - OBJ reader
 - GLTF reader
+
+### Future Work
+
+- Ray Tracing
+- Engine abstraction layer for things like Scene, Sprite, Material, Camera, etc. Kinda like raylib
+- C API for Oxide, so that it can be used in C programs and other languages. Maybe refactor core into C and just have C++ wrappers
+- Finish the Control hiss smoke effect
 
 ## Workflow
 

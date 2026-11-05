@@ -6,7 +6,7 @@ set(OXIDE_EXAMPLES
     sierpinski
     hiss
     multiple_pipelines
-    magnifying_glass
+    crt_scene
 )
 
 find_package(cglm CONFIG REQUIRED)
