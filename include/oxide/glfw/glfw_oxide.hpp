@@ -17,11 +17,17 @@ struct WindowConfig {
 	bool        resizable   = true;
 	bool        transparent = false;
 	bool        decorated   = true;
+	bool        floating    = false;
 };
 
 struct MousePosition {
 	double x = 0.0;
 	double y = 0.0;
+};
+
+struct WindowPosition {
+	int x = 0;
+	int y = 0;
 };
 
 class GLFWContext {
@@ -55,8 +61,14 @@ class Window {
 	// content scale other than 1.0 (for example HiDPI screens).
 	[[nodiscard]] int framebufferWidth() const noexcept;
 	[[nodiscard]] int framebufferHeight() const noexcept;
+	// Wayland compositors do not expose global window coordinates; on Wayland
+	// this returns the last requested position instead.
+	[[nodiscard]] WindowPosition position() const noexcept;
+	void                       setPosition(WindowPosition position) noexcept;
+	[[nodiscard]] bool         hasGlobalPosition() const noexcept;
 
 	[[nodiscard]] bool          shouldClose() const noexcept;
+	[[nodiscard]] bool          closeRequested() noexcept;
 	[[nodiscard]] bool          transparent() const noexcept;
 	void                        pollEvents() const noexcept;
 	[[nodiscard]] double        time() const noexcept;
@@ -78,6 +90,7 @@ class Window {
 	GLFWwindow             *window_ = nullptr;
 	std::unordered_set<int> pressed_keys_;
 	MousePosition           scroll_delta_;
+	mutable WindowPosition  position_;
 
 	static std::unordered_map<GLFWwindow *, Window *> instances_;
 };

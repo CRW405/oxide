@@ -50,6 +50,7 @@ Window::Window(const WindowConfig &config) {
 	glfwWindowHint(GLFW_RESIZABLE, config.resizable ? GLFW_TRUE : GLFW_FALSE);
 	glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, config.transparent ? GLFW_TRUE : GLFW_FALSE);
 	glfwWindowHint(GLFW_DECORATED, config.decorated ? GLFW_TRUE : GLFW_FALSE);
+	glfwWindowHint(GLFW_FLOATING, config.floating ? GLFW_TRUE : GLFW_FALSE);
 	glfwWindowHintString(GLFW_WAYLAND_APP_ID, "make-me-float"); // debug helper for hyprland
 	window_ = glfwCreateWindow(config.width, config.height, config.title.c_str(), nullptr, nullptr);
 	if (window_ == nullptr) {
@@ -57,6 +58,9 @@ Window::Window(const WindowConfig &config) {
 		glfwGetError(&description);
 		throw runtimeError(std::string("failed to create GLFW window") +
 		                   (description != nullptr ? ": " + std::string(description) : ""));
+	}
+	if (glfwGetPlatform() != GLFW_PLATFORM_WAYLAND) {
+		glfwGetWindowPos(window_, &position_.x, &position_.y);
 	}
 	instances_[window_] = this;
 	glfwSetKeyCallback(window_, keyCallback);
@@ -71,7 +75,8 @@ Window::~Window() {
 Window::Window(Window &&other) noexcept
     : window_(other.window_),
       pressed_keys_(std::move(other.pressed_keys_)),
-      scroll_delta_(other.scroll_delta_) {
+      scroll_delta_(other.scroll_delta_),
+      position_(other.position_) {
 	if (window_ != nullptr) {
 		instances_[window_] = this;
 	}
@@ -87,6 +92,7 @@ Window &Window::operator=(Window &&other) noexcept {
 		window_       = other.window_;
 		pressed_keys_ = std::move(other.pressed_keys_);
 		scroll_delta_ = other.scroll_delta_;
+		position_     = other.position_;
 		if (window_ != nullptr) {
 			instances_[window_] = this;
 		}
@@ -145,8 +151,30 @@ int Window::framebufferHeight() const noexcept {
 	return height;
 }
 
+WindowPosition Window::position() const noexcept {
+	if (window_ != nullptr && glfwGetPlatform() != GLFW_PLATFORM_WAYLAND) {
+		glfwGetWindowPos(window_, &position_.x, &position_.y);
+	}
+	return position_;
+}
+
+void Window::setPosition(WindowPosition position) noexcept {
+	position_ = position;
+	if (window_ != nullptr && glfwGetPlatform() != GLFW_PLATFORM_WAYLAND) {
+		glfwSetWindowPos(window_, position.x, position.y);
+	}
+}
+
+bool Window::hasGlobalPosition() const noexcept {
+	return window_ != nullptr && glfwGetPlatform() != GLFW_PLATFORM_WAYLAND;
+}
+
 bool Window::shouldClose() const noexcept {
 	return window_ == nullptr || glfwWindowShouldClose(window_) == GLFW_TRUE;
+}
+
+bool Window::closeRequested() noexcept {
+	return shouldClose() || keyPressed(GLFW_KEY_ESCAPE) || keyPressed(GLFW_KEY_Q);
 }
 
 bool Window::transparent() const noexcept {

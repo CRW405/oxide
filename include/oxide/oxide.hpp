@@ -1,0 +1,19 @@
+#pragma once
+
+#include <oxide/glfw/glfw_oxide.hpp>
+#include <oxide/tools/fps.hpp>
+#include <oxide/tools/log.hpp>
+#include <oxide/vulkan/application.hpp>
+#include <oxide/vulkan/resources/buffer.hpp>
+#include <oxide/vulkan/resources/descriptor_set.hpp>
+#include <oxide/vulkan/resources/image_texture.hpp>
+#include <oxide/vulkan/pipeline/pipeline_layout.hpp>
+#include <oxide/vulkan/pipeline/render_pipeline.hpp>
+#include <oxide/vulkan/pipeline/pipeline_config.hpp>
+#include <oxide/vulkan/core/resource_registry.hpp>
+#include <oxide/vulkan/resources/texture_descriptor.hpp>
+#include <oxide/vulkan/resources/ubo_descriptor.hpp>
+#include <oxide/vulkan/resources/uniform_buffer_ring.hpp>
+#include <oxide/vulkan/core/vk_error.hpp>
+#include <oxide/vulkan/frame/vulkan_context.hpp>
+#include <oxide/vulkan/device/vulkan_device.hpp>

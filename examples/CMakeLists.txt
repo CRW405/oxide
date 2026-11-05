@@ -1,11 +1,12 @@
 set(OXIDE_EXAMPLES
-    triangle
+    vulkan_triangle
+    indexed_quad
+    textured_quad
+    animated_uniform
     sierpinski
-    image_texture
-    uniform_buffer
-    showcase
-    compute
     hiss
+    multiple_pipelines
+    magnifying_glass
 )
 
 find_package(cglm CONFIG REQUIRED)
@@ -23,10 +24,9 @@ else()
     message(FATAL_ERROR "Neither glslc nor glslangValidator was found")
 endif()
 
-# Each example is a standalone executable with its own shaders. The compiled
-# SPIR-V is placed next to the example binary, and the example is told where
-# that directory is through OXIDE_SHADER_DIR. OXIDE_ASSET_DIR points at the
-# shared assets directory in the source tree.
+# Each example is a standalone executable with its own shaders. A shader named
+# <program>.<stage> is compiled to <program>.<stage>.spv, matching
+# oxide::ShaderLibrary's lookup convention.
 foreach(EXAMPLE IN LISTS OXIDE_EXAMPLES)
     set(EXAMPLE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${EXAMPLE}")
     set(EXAMPLE_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/${EXAMPLE}")
@@ -79,3 +79,22 @@ foreach(EXAMPLE IN LISTS OXIDE_EXAMPLES)
         USES_TERMINAL
     )
 endforeach()
+
+set(RUNALL_COMMANDS)
+foreach(EXAMPLE IN LISTS OXIDE_EXAMPLES)
+    list(APPEND RUNALL_COMMANDS
+        COMMAND "${CMAKE_COMMAND}" -E echo ""
+        COMMAND "${CMAKE_COMMAND}" -E echo "========== Running ${EXAMPLE} =========="
+        COMMAND "${CMAKE_COMMAND}" -E chdir
+                "${CMAKE_CURRENT_BINARY_DIR}/${EXAMPLE}"
+                "$<TARGET_FILE:${EXAMPLE}>"
+        COMMAND "${CMAKE_COMMAND}" -E echo "========== Finished ${EXAMPLE} =========="
+    )
+endforeach()
+
+add_custom_target(runall
+    ${RUNALL_COMMANDS}
+    DEPENDS ${OXIDE_EXAMPLES}
+    COMMENT "Running all Oxide examples"
+    USES_TERMINAL
+)

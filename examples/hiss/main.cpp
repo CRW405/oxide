@@ -1,12 +1,4 @@
-#include <oxide/glfw/glfw_oxide.hpp>
-#include <oxide/tools/fps.hpp>
-#include <oxide/tools/log.hpp>
-#include <oxide/vulkan/buffer.hpp>
-#include <oxide/vulkan/pipeline_layout.hpp>
-#include <oxide/vulkan/render_pipeline.hpp>
-#include <oxide/vulkan/uniform_buffer_ring.hpp>
-#include <oxide/vulkan/vulkan_context.hpp>
-#include <oxide/vulkan/vulkan_device.hpp>
+#include <oxide/oxide.hpp>
 
 #include <cmath>
 #include <cstdint>
@@ -33,17 +25,17 @@ struct pushConstants {
 
 int main() {
 	// lib setup
-	oxide::GLFWContext   glfw;
-	oxide::Window        window({ 800, 600, "Control Hiss Shader", true });
-	oxide::VulkanDevice  device(window.handle(), "Control Hiss Shader");
-	oxide::VulkanContext vulkan(device, &window);
+	oxide::Application app(800, 600, "Control Hiss Shader");
+	oxide::Window        &window = app.window();
+	oxide::VulkanDevice  &device = app.device();
+	oxide::VulkanContext &vulkan = app.context();
 
 	// cam ubo setup
 	Camera camera;
 	glm_mat4_identity(camera.model);
 	glm_mat4_identity(camera.view);
 	glm_mat4_identity(camera.projection);
-	oxide::UniformBufferRing cameraBuffer(device, oxide::MAX_FRAMES_IN_FLIGHT, sizeof(Camera), &camera);
+	oxide::UniformBufferRing cameraBuffer(device, oxide::MAX_FRAMES_IN_FLIGHT, camera);
 
 	// vertex setup
 	oxide::VertexInputDescription vertexInput;
@@ -83,23 +75,18 @@ int main() {
 	pipelineConfig.rasterizationInfo.frontFace       = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	oxide::PipelineLayout pipelineLayout(device, { cameraBuffer.layout() }, { pushconstant.range() });
 	pipelineConfig.setVertexInput(vertexInput);
-	pipelineConfig.pipelineLayout = pipelineLayout.handle();
-	pipelineConfig.renderPass     = vulkan.renderPass();
-	oxide::Pipeline        pipeline(device,
-	                                OXIDE_SHADER_DIR "/hiss.vert.spv",
-	                                OXIDE_SHADER_DIR "/hiss.frag.spv",
-	                                pipelineConfig);
+	pipelineConfig.setPipelineLayout(oxide::BorrowedPipelineLayout(pipelineLayout.handle()));
+	oxide::ShaderLibrary shaders(OXIDE_SHADER_DIR);
+	oxide::SwapchainPipeline pipeline(vulkan, device, shaders.graphics("hiss"), pipelineConfig);
 	oxide::DeviceIdleGuard idleGuard(device);
 
 	while (!window.shouldClose()) {
 		window.pollEvents();
 
-		if (window.keyPressed(GLFW_KEY_ESCAPE) || window.keyPressed(GLFW_KEY_Q)) {
-			glfwSetWindowShouldClose(window.handle(), GLFW_TRUE);
-		}
+		if (window.closeRequested()) break;
 
-		oxide::Frame frame = vulkan.beginFrame();
-		if (frame.commandBuffer == VK_NULL_HANDLE) {
+		oxide::FrameScope frame = vulkan.beginFrameScope({ 0.0f, 0.0f, 0.0f, 0.0f });
+		if (!frame) {
 			continue;
 		}
 
@@ -122,18 +109,15 @@ int main() {
 		glm_perspective(glm_rad(45.0f), aspect_ratio, 0.1f, 100.0f, camera.projection);
 		camera.projection[1][1] *= -1.0f; // Vulkan Y-flip
 
-		cameraBuffer.update(frame.frameIndex, camera);
+		cameraBuffer.update(frame.frameIndex(), camera);
 
 		pushConstants pc{ static_cast<float>(currentTime / 5) };
-		pipelineLayout.pushConstant(frame.commandBuffer, pushconstant, pc);
+		pipelineLayout.pushConstant(frame.commandBuffer(), pushconstant, pc);
 
-		vulkan.beginRenderPass(frame, { 0.0f, 0.0f, 0.0f, 0.0f });
-		cubeMesh.bind(frame.commandBuffer);
-		cameraBuffer.bind(frame.commandBuffer, pipelineLayout.handle(), frame.frameIndex, 0);
-		pipeline.bind(frame.commandBuffer);
-		vulkan.setViewportAndScissor(frame.commandBuffer);
-		cubeMesh.draw(frame.commandBuffer);
-		vulkan.endRenderPass(frame);
-		vulkan.endFrame(frame);
+		cubeMesh.bind(frame.commandBuffer());
+		cameraBuffer.bind(frame.commandBuffer(), pipelineLayout.handle(), frame.frameIndex(), 0);
+		pipeline.bind(frame.commandBuffer());
+		vulkan.setViewportAndScissor(frame.commandBuffer());
+		cubeMesh.draw(frame.commandBuffer());
 	}
 }
