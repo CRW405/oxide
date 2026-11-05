@@ -4,77 +4,90 @@
 #include <cstdio>
 #include <exception>
 
-struct Camera {
+// Values sent to the fragment shader as push constants each frame.
+struct FractalSettings {
 	int   recursion_depth;
 	float zoom;
 	float aspect_ratio;
 };
 
 int main() {
-	// setup
+	// High-level bootstrap.
 	oxide::Application    app(500, 500, "Sierpinski Triangle");
 	oxide::Window        &window = app.window();
 	oxide::VulkanDevice  &device = app.device();
-	oxide::VulkanContext &vulkan = app.context();
+	oxide::VulkanContext &vulkan_context = app.context();
 
-	// create pipeline
-	oxide::PipelineConfigInfo pipelineConfig = oxide::Pipeline::defaultPipelineConfigInfo();
+	// The fragment shader draws the entire fractal, so no vertex buffer is
+	// required. The vertex shader generates one oversized screen triangle.
+	oxide::PipelineConfigInfo pipeline_config =
+	    oxide::Pipeline::defaultPipelineConfigInfo();
 
-	const oxide::PushConstant cameraPush = oxide::pushConstant<Camera>(VK_SHADER_STAGE_FRAGMENT_BIT);
-	oxide::PipelineLayout     pipelineLayout(device, { cameraPush.range() });
-	pipelineConfig.setPipelineLayout(oxide::BorrowedPipelineLayout(pipelineLayout.handle()));
-	oxide::ShaderLibrary     shaders(OXIDE_SHADER_DIR);
-	oxide::SwapchainPipeline pipeline(vulkan, device, shaders.graphics("sierpinski_triangle"), pipelineConfig);
+	const oxide::PushConstant fractal_push_constant =
+	    oxide::pushConstant<FractalSettings>(VK_SHADER_STAGE_FRAGMENT_BIT);
+	oxide::PipelineLayout pipeline_layout(device, { fractal_push_constant.range() });
+	pipeline_config.setPipelineLayout(
+	    oxide::BorrowedPipelineLayout(pipeline_layout.handle()));
+
+	oxide::ShaderLibrary     shader_library(OXIDE_SHADER_DIR);
+	oxide::SwapchainPipeline sierpinski_pipeline(
+	    vulkan_context, device, shader_library.graphics("sierpinski_triangle"),
+	    pipeline_config);
 
 	// Declared after the GPU resources so it is destroyed first, including on
 	// exception unwinding from the render loop.
-	oxide::DeviceIdleGuard idle_guard(device);
+	oxide::DeviceIdleGuard device_idle_guard(device);
 
-	// "globals"
-	Camera camera{ 0, 1.0f, 1.0f };
+	// Mutable state driven by keyboard and scroll input.
+	FractalSettings fractal_settings{ 0, 1.0f, 1.0f };
 
-	// debug tools
-	tools::FPSCounter fps(window.time());
+	// Debug tools.
+	tools::FPSCounter fps_counter(window.time());
 
-	// main loop
+	// Main loop.
 	while (!window.shouldClose()) {
 		window.pollEvents();
 
-		// input
-		if (window.closeRequested()) break;
+		// Input: left/right change recursion depth, scroll zooms.
+		if (window.closeRequested())
+			break;
 		if (window.keyPressed(GLFW_KEY_RIGHT)) {
-			camera.recursion_depth++;
-			std::printf("Recursion depth: %d\n", camera.recursion_depth);
-			std::printf("Number of triangles: %lld\n", (long long)pow(3, camera.recursion_depth));
+			fractal_settings.recursion_depth++;
+			std::printf("Recursion depth: %d\n", fractal_settings.recursion_depth);
+			std::printf(
+			    "Number of triangles: %lld\n",
+			    static_cast<long long>(std::pow(3, fractal_settings.recursion_depth)));
 		}
-		if (window.keyPressed(GLFW_KEY_LEFT) && camera.recursion_depth > 0) {
-			camera.recursion_depth--;
-			std::printf("Recursion depth: %d\n", camera.recursion_depth);
-			std::printf("Number of triangles: %lld\n", (long long)pow(3, camera.recursion_depth));
+		if (window.keyPressed(GLFW_KEY_LEFT) && fractal_settings.recursion_depth > 0) {
+			fractal_settings.recursion_depth--;
+			std::printf("Recursion depth: %d\n", fractal_settings.recursion_depth);
+			std::printf(
+			    "Number of triangles: %lld\n",
+			    static_cast<long long>(std::pow(3, fractal_settings.recursion_depth)));
 		}
 
-		const oxide::MousePosition scroll = window.consumeScrollDelta();
-		camera.zoom                       = camera.zoom * std::exp(static_cast<float>(scroll.y) * 0.1f);
+		const oxide::MousePosition scroll_delta = window.consumeScrollDelta();
+		fractal_settings.zoom *= std::exp(static_cast<float>(scroll_delta.y) * 0.1f);
 
-		// create frame
-		oxide::FrameScope frame = vulkan.beginFrameScope({ 1.0f, 1.0f, 1.0f, 1.0f });
-		if (!frame) {
-			continue;
+		// Begin the frame and its render pass.
+		oxide::FrameScope frame_scope =
+		    vulkan_context.beginFrameScope({ 1.0f, 1.0f, 1.0f, 1.0f });
+		if (!frame_scope) {
+			continue; // The swapchain is being recreated.
 		}
-		camera.aspect_ratio = static_cast<float>(vulkan.extent().width) /
-		                      static_cast<float>(vulkan.extent().height);
+		fractal_settings.aspect_ratio = static_cast<float>(vulkan_context.extent().width) /
+		                               static_cast<float>(vulkan_context.extent().height);
 
-		// setup draw
-		pipeline.bind(frame.commandBuffer());
-		vulkan.setViewportAndScissor(frame.commandBuffer());
+		// Bind the pipeline and update the fragment shader's parameters.
+		sierpinski_pipeline.bind(frame_scope.commandBuffer());
+		vulkan_context.setViewportAndScissor(frame_scope.commandBuffer());
+		pipeline_layout.pushConstant(
+		    frame_scope.commandBuffer(), fractal_push_constant, fractal_settings);
 
-		// push constant data
-		pipelineLayout.pushConstant(frame.commandBuffer(), cameraPush, camera);
-
-		// draw
-		pipeline.pipeline().draw(frame.commandBuffer(), 3);
-		fps.update(window.time());
+		// Draw the full-screen triangle; the fragment shader does the rest.
+		sierpinski_pipeline.pipeline().draw(frame_scope.commandBuffer(), 3);
+		fps_counter.update(window.time());
 	}
-	fps.finish();
+	fps_counter.finish();
 	return 0;
 }

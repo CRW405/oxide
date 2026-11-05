@@ -1,67 +1,81 @@
 #version 450
 
-layout(location = 0) in vec3 fragColor;
-layout(location = 1) in vec3 fragPos;
-layout(location = 2) in vec3 fragNormal;
+layout(location = 0) in vec3 fragmentColor;
+layout(location = 1) in vec3 fragmentPosition;
+layout(location = 2) in vec3 fragmentNormal;
 
 layout(location = 0) out vec4 outColor;
 
-layout(push_constant) uniform PushConstants {
+// Animation time in seconds, supplied as a push constant from main.cpp.
+layout(push_constant) uniform HissPushConstants {
 	float time;
 }
-pc;
+pushConstants;
 
-float random(vec2 st) {
-	return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+// Cheap hash-based pseudo-random value in [0, 1].
+float random(vec2 coordinates) {
+	return fract(sin(dot(coordinates, vec2(12.9898, 78.233))) * 43758.5453123);
 }
 
-float noise(vec2 st) {
-	vec2 i = floor(st);
-	vec2 f = fract(st);
+// Bilinear value noise: hash the four corners of a grid cell and blend them
+// with smoothstep-style weights.
+float noise(vec2 coordinates) {
+	vec2 cell  = floor(coordinates);
+	vec2 local = fract(coordinates);
 
-	float a = random(i);
-	float b = random(i + vec2(1.0, 0.0));
-	float c = random(i + vec2(0.0, 1.0));
-	float d = random(i + vec2(1.0, 1.0));
+	float bottomLeft  = random(cell);
+	float bottomRight = random(cell + vec2(1.0, 0.0));
+	float topLeft     = random(cell + vec2(0.0, 1.0));
+	float topRight    = random(cell + vec2(1.0, 1.0));
 
-	vec2 u = f * f * (3.0 - 2.0 * f);
+	vec2 weights = local * local * (3.0 - 2.0 * local);
 
-	return mix(a, b, u.x) +
-	       (c - a) * u.y * (1.0 - u.x) +
-	       (d - b) * u.x * u.y;
+	return mix(bottomLeft, bottomRight, weights.x) +
+	       (topLeft - bottomLeft) * weights.y * (1.0 - weights.x) +
+	       (topRight - bottomRight) * weights.x * weights.y;
 }
 
-// Fractal Brownian Motion for more interesting noise
-float fbm(vec2 st) {
+// Fractal Brownian motion: sum several octaves of noise for richer detail.
+float fbm(vec2 coordinates) {
 	float value     = 0.0;
 	float amplitude = 0.5;
 
-	for (int i = 0; i < 5; i++) {
-		value += amplitude * noise(st);
-		st *= 2.0;
+	for (int octave = 0; octave < 5; octave++) {
+		value += amplitude * noise(coordinates);
+		coordinates *= 2.0;
 		amplitude *= 0.5;
 	}
 	return value;
 }
 
 void main() {
-	vec3 n  = normalize(fragNormal);
-	vec2 st = (fragPos.xy * 0.8) + (n.xy * 0.4);
+	vec3 surfaceNormal = normalize(fragmentNormal);
 
-	float time = pc.time * 1.5;
+	// Combine object-space position and normal so the pattern wraps around the
+	// cube instead of looking like a flat projection.
+	vec2 noiseCoordinates =
+	    (fragmentPosition.xy * 0.8) + (surfaceNormal.xy * 0.4);
 
-	vec2  q          = vec2(fbm(st + time * 0.15), fbm(st + vec2(1.0, 1.0) - time * 0.1));
-	vec2  r          = vec2(fbm(st + 4.0 * q + time * 0.1), fbm(st + 4.0 * q + vec2(1.8, 2.5) - time * 0.15));
-	float smokeNoise = fbm(st + 2.5 * r);
+	float animationTime = pushConstants.time * 1.5;
+
+	// Two layers of domain warping give the texture its swirling, liquid look.
+	vec2 warpA = vec2(
+	    fbm(noiseCoordinates + animationTime * 0.15),
+	    fbm(noiseCoordinates + vec2(1.0, 1.0) - animationTime * 0.1));
+	vec2 warpB = vec2(
+	    fbm(noiseCoordinates + 4.0 * warpA + animationTime * 0.1),
+	    fbm(noiseCoordinates + 4.0 * warpA + vec2(1.8, 2.5) -
+	        animationTime * 0.15));
+	float smokeDensity = fbm(noiseCoordinates + 2.5 * warpB);
 
 	vec3 black = vec3(0.0, 0.0, 0.0);
 	vec3 grey  = vec3(0.1, 0.1, 0.1);
 	vec3 red   = vec3(1.0, 0.0, 0.0);
 
-	vec3 color = mix(black, grey, clamp(smokeNoise * 1.5, 0.0, 1.0));
+	// Black smoke on grey, with red highlights in the densest regions.
+	vec3  smokeColor = mix(grey, black, clamp(smokeDensity * 1.5, 0.0, 1.0));
+	float redGlow    = smoothstep(0.35, 0.8, smokeDensity);
+	smokeColor       = mix(smokeColor, red, redGlow);
 
-	float redIntensity = smoothstep(0.35, 0.8, smokeNoise);
-	color              = mix(color, red, redIntensity);
-
-	outColor = vec4(color, 1.0);
+	outColor = vec4(smokeColor, 1.0);
 }

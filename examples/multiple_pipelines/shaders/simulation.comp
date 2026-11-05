@@ -1,5 +1,7 @@
 #version 450
 
+// Single-thread placeholder dispatch. A real simulation would write to a
+// storage buffer here.
 layout(local_size_x = 1) in;
 
 void main() {

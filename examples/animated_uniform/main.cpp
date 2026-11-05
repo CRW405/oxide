@@ -1,15 +1,20 @@
 #include <oxide/oxide.hpp>
 
 #include <cmath>
+#include <cstddef>
 #include <exception>
 #include <vector>
 
-struct Vertex {
+// Animated triangle vertex: location 0 is a 2D position and location 1 is an
+// RGB color.
+struct AnimatedVertex {
 	float position[2];
 	float color[3];
 };
 
-struct Uniforms {
+// Per-frame transform values. The trailing padding keeps the block aligned to
+// 16 bytes, matching the uniform layout declared in the vertex shader.
+struct AnimationUniforms {
 	float offset[2];
 	float scale;
 	float padding;
@@ -20,52 +25,71 @@ int main() {
 		oxide::Application    app(640, 480, "Animated Uniform");
 		oxide::Window        &window = app.window();
 		oxide::VulkanDevice  &device = app.device();
-		oxide::VulkanContext &vulkan = app.context();
+		oxide::VulkanContext &vulkan_context = app.context();
 
-		Uniforms initial{ { 0.0f, 0.0f }, 1.0f, 0.0f };
-		oxide::UniformBufferRing uniforms(
-		    device, oxide::MAX_FRAMES_IN_FLIGHT, initial);
+		const AnimationUniforms initial_uniforms{ { 0.0f, 0.0f }, 1.0f, 0.0f };
 
-		oxide::VertexInputDescription input;
-		input.addBinding(0, sizeof(Vertex))
-		    .addAttribute(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, position))
-		    .addAttribute(1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color));
+		// One uniform buffer and descriptor set per frame in flight, so the CPU
+		// never overwrites data the GPU is still reading.
+		oxide::UniformBufferRing animation_uniform_buffer(
+		    device, oxide::MAX_FRAMES_IN_FLIGHT, initial_uniforms);
 
-		auto config = oxide::Pipeline::defaultPipelineConfigInfo();
-		config.setVertexInput(input);
-		oxide::PipelineLayout layout(device, { uniforms.layout() }, {});
-		config.setPipelineLayout(oxide::BorrowedPipelineLayout(layout.handle()));
-		oxide::ShaderLibrary shaders(OXIDE_SHADER_DIR);
+		oxide::VertexInputDescription vertex_input_description;
+		vertex_input_description.addBinding(0, sizeof(AnimatedVertex))
+		    .addAttribute(0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(AnimatedVertex, position))
+		    .addAttribute(
+		        1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(AnimatedVertex, color));
+
+		oxide::PipelineConfigInfo pipeline_config =
+		    oxide::Pipeline::defaultPipelineConfigInfo();
+		pipeline_config.setVertexInput(vertex_input_description);
+
+		// Expose the per-frame uniform buffer to the vertex shader.
+		oxide::PipelineLayout pipeline_layout(
+		    device, { animation_uniform_buffer.layout() }, {});
+		pipeline_config.setPipelineLayout(
+		    oxide::BorrowedPipelineLayout(pipeline_layout.handle()));
+
+		oxide::ShaderLibrary     shader_library(OXIDE_SHADER_DIR);
 		oxide::SwapchainPipeline pipeline(
-		    vulkan, device, shaders.graphics("animated_uniform"), config);
+		    vulkan_context, device, shader_library.graphics("animated_uniform"),
+		    pipeline_config);
 
-		const std::vector<Vertex> triangle = {
+		const std::vector<AnimatedVertex> triangle_vertices = {
 			{ { -0.5f, -0.5f }, { 1.0f, 0.2f, 0.2f } },
 			{ { 0.5f, -0.5f },  { 0.2f, 1.0f, 0.2f } },
 			{ { 0.0f, 0.5f },   { 0.2f, 0.4f, 1.0f } },
 		};
-		oxide::VertexBuffer vertices(device, triangle);
-		oxide::DeviceIdleGuard idle_guard(device);
+		oxide::VertexBuffer   triangle_vertex_buffer(device, triangle_vertices);
+		oxide::DeviceIdleGuard device_idle_guard(device);
 
 		while (!window.shouldClose()) {
 			window.pollEvents();
-			if (window.closeRequested()) break;
-			oxide::FrameScope frame = vulkan.beginFrameScope({ 0.02f, 0.02f, 0.05f, 1.0f });
-			if (!frame) continue;
+			if (window.closeRequested())
+				break;
 
-			const float time = static_cast<float>(window.time());
-			Uniforms data{
-				{ std::sin(time) * 0.35f, std::cos(time * 0.8f) * 0.25f },
-				0.75f + std::sin(time * 1.7f) * 0.2f,
+			oxide::FrameScope frame_scope =
+			    vulkan_context.beginFrameScope({ 0.02f, 0.02f, 0.05f, 1.0f });
+			if (!frame_scope)
+				continue;
+
+			// Oscillate the triangle's offset and scale over time.
+			const float elapsed_seconds = static_cast<float>(window.time());
+			const AnimationUniforms frame_uniforms{
+				{ std::sin(elapsed_seconds) * 0.35f,
+			      std::cos(elapsed_seconds * 0.8f) * 0.25f },
+				0.75f + std::sin(elapsed_seconds * 1.7f) * 0.2f,
 				0.0f,
 			};
-			uniforms.update(frame.frameIndex(), data);
+			animation_uniform_buffer.update(frame_scope.frameIndex(), frame_uniforms);
 
-			pipeline.bind(frame.commandBuffer());
-			vulkan.setViewportAndScissor(frame.commandBuffer());
-			uniforms.bind(frame.commandBuffer(), layout.handle(), frame.frameIndex());
-			vertices.bind(frame.commandBuffer());
-			pipeline.pipeline().draw(frame.commandBuffer(), 3);
+			pipeline.bind(frame_scope.commandBuffer());
+			vulkan_context.setViewportAndScissor(frame_scope.commandBuffer());
+			animation_uniform_buffer.bind(
+			    frame_scope.commandBuffer(), pipeline_layout.handle(),
+			    frame_scope.frameIndex());
+			triangle_vertex_buffer.bind(frame_scope.commandBuffer());
+			pipeline.pipeline().draw(frame_scope.commandBuffer(), 3);
 		}
 	} catch (const std::exception &error) {
 		OXIDE_LOG_FATAL << error.what();
