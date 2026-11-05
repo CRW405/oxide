@@ -39,7 +39,6 @@ directory:
 - `examples/sierpinski` — A fragment-shader fractal driven by push constants
 - `examples/hiss` — Animated cube using a per-frame UBO and push constants meant to copy Control's hiss liquidy effect. Smoke effect coming soon.
 - `examples/multiple_pipelines` — Two graphics shader pairs plus a compute pass sharing one device and frame
-- `examples/crt_scene` — A textured scene with primitives and a CRT monitor effect
 
 ## Use Case
 
@@ -56,6 +55,9 @@ It is aimed at programs that need direct control over:
 
 It is not a complete game engine. It does not provide scenes, materials,
 asset loading, cameras, or an entity system. (yet (maybe))
+
+Detailed diagnostics, backend architecture, file mapping, and graphics/Vulkan background are in [NOTES.md](NOTES.md).
+Cheatsheet available in [CHEATSHEET.md](CHEATSHEET.md).
 
 ## Building
 
@@ -101,8 +103,6 @@ cmake --build build -j
 Disabling validation skips the validation layer and debug messenger. Disabling
 logging makes the `OXIDE_LOG_*` statements discard their output; their
 arguments are still evaluated.
-
-Detailed diagnostics, backend architecture, file mapping, and graphics/Vulkan background are in [NOTES.md](NOTES.md).
 
 ## TODO
 
