@@ -6,7 +6,6 @@ set(OXIDE_EXAMPLES
     sierpinski
     hiss
     multiple_pipelines
-    crt_scene
 )
 
 find_package(cglm CONFIG REQUIRED)
