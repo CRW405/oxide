@@ -16,4 +16,5 @@
 #include <oxide/vulkan/resources/uniform_buffer_ring.hpp>
 #include <oxide/vulkan/core/vk_error.hpp>
 #include <oxide/vulkan/frame/vulkan_context.hpp>
+#include <oxide/vulkan/frame/offscreen_target.hpp>
 #include <oxide/vulkan/device/vulkan_device.hpp>

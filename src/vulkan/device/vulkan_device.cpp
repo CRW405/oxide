@@ -225,6 +225,52 @@ void VulkanDevice::waitIdleNoThrow() const noexcept {
 	}
 }
 
+VkCommandBuffer VulkanDevice::beginSingleTimeCommands() const {
+	VkCommandBufferAllocateInfo allocation{};
+	allocation.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocation.commandPool        = command_pool_;
+	allocation.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocation.commandBufferCount = 1;
+
+	VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+	checkVk(vkAllocateCommandBuffers(device_, &allocation, &command_buffer),
+	        "allocate one-time command buffer");
+
+	VkCommandBufferBeginInfo begin{};
+	begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	try {
+		checkVk(vkBeginCommandBuffer(command_buffer, &begin), "begin one-time command buffer");
+	} catch (...) {
+		vkFreeCommandBuffers(device_, command_pool_, 1, &command_buffer);
+		throw;
+	}
+	return command_buffer;
+}
+
+void VulkanDevice::endSingleTimeCommands(VkCommandBuffer command_buffer) const {
+	if (command_buffer == VK_NULL_HANDLE) {
+		return;
+	}
+	try {
+		checkVk(vkEndCommandBuffer(command_buffer), "end one-time command buffer");
+
+		VkSubmitInfo submit{};
+		submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submit.commandBufferCount = 1;
+		submit.pCommandBuffers    = &command_buffer;
+
+		checkVk(vkQueueSubmit(graphics_queue_, 1, &submit, VK_NULL_HANDLE),
+		        "submit one-time command buffer");
+		checkVk(vkQueueWaitIdle(graphics_queue_), "wait for one-time command buffer");
+	} catch (...) {
+		vkFreeCommandBuffers(device_, command_pool_, 1, &command_buffer);
+		throw;
+	}
+	vkFreeCommandBuffers(device_, command_pool_, 1, &command_buffer);
+}
+
 void VulkanDevice::createInstance(const std::string app_name) {
 	bool validation_enabled = enable_validation;
 	if (validation_enabled && !validationAvailable()) {

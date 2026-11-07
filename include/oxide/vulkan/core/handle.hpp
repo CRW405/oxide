@@ -29,6 +29,8 @@ struct PipelineTag;
 struct DescriptorLayoutTag;
 struct DescriptorPoolTag;
 struct PipelineLayoutTag;
+struct RenderPassTag;
+struct FramebufferTag;
 
 using BufferHandle = Handle<BufferTag>;
 using ImageHandle = Handle<ImageTag>;
@@ -37,5 +39,7 @@ using PipelineHandle = Handle<PipelineTag>;
 using DescriptorLayoutHandle = Handle<DescriptorLayoutTag>;
 using DescriptorPoolHandle = Handle<DescriptorPoolTag>;
 using PipelineLayoutHandle = Handle<PipelineLayoutTag>;
+using RenderPassHandle = Handle<RenderPassTag>;
+using FramebufferHandle = Handle<FramebufferTag>;
 
 } // namespace oxide

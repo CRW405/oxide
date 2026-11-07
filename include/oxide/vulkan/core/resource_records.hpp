@@ -46,4 +46,12 @@ struct PipelineLayoutResource {
 	VkPipelineLayout layout = VK_NULL_HANDLE;
 };
 
+struct RenderPassResource {
+	VkRenderPass render_pass = VK_NULL_HANDLE;
+};
+
+struct FramebufferResource {
+	VkFramebuffer framebuffer = VK_NULL_HANDLE;
+};
+
 } // namespace oxide

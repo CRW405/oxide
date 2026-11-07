@@ -5,7 +5,9 @@ set(OXIDE_EXAMPLES
     animated_uniform
     sierpinski
     hiss
-   multiple_pipelines
+    multiple_pipelines
+    offscreen_png
+    render_to_texture
 )
 
 find_package(cglm CONFIG REQUIRED)

@@ -13,53 +13,8 @@
 
 namespace oxide {
 
-VkCommandBuffer beginSingleTimeCommands(VulkanDevice &device) {
-	VkCommandBufferAllocateInfo allocInfo{};
-	allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandPool        = device.commandPool();
-	allocInfo.commandBufferCount = 1;
-
-	VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-	checkVk(vkAllocateCommandBuffers(device.device(), &allocInfo, &commandBuffer),
-	        "allocate one-time command buffer");
-
-	VkCommandBufferBeginInfo beginInfo{};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	try {
-		checkVk(vkBeginCommandBuffer(commandBuffer, &beginInfo), "begin one-time command buffer");
-	} catch (...) {
-		vkFreeCommandBuffers(device.device(), device.commandPool(), 1, &commandBuffer);
-		throw;
-	}
-
-	return commandBuffer;
-}
-
-void endSingleTimeCommands(VulkanDevice &device, VkCommandBuffer commandBuffer) {
-	try {
-		checkVk(vkEndCommandBuffer(commandBuffer), "end one-time command buffer");
-
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers    = &commandBuffer;
-
-		checkVk(vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE),
-		        "submit one-time command buffer");
-		checkVk(vkQueueWaitIdle(device.graphicsQueue()), "wait for one-time command buffer");
-	} catch (...) {
-		vkFreeCommandBuffers(device.device(), device.commandPool(), 1, &commandBuffer);
-		throw;
-	}
-
-	vkFreeCommandBuffers(device.device(), device.commandPool(), 1, &commandBuffer);
-}
-
 void transitionImageLayout(VulkanDevice &device, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device);
+	VkCommandBuffer commandBuffer = device.beginSingleTimeCommands();
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -106,11 +61,11 @@ void transitionImageLayout(VulkanDevice &device, VkImage image, VkImageLayout ol
 	                     1,
 	                     &barrier);
 
-	endSingleTimeCommands(device, commandBuffer);
+	device.endSingleTimeCommands(commandBuffer);
 }
 
 void copyBufferToImage(VulkanDevice &device, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device);
+	VkCommandBuffer commandBuffer = device.beginSingleTimeCommands();
 
 	VkBufferImageCopy region{};
 	region.bufferOffset                    = 0;
@@ -130,7 +85,7 @@ void copyBufferToImage(VulkanDevice &device, VkBuffer buffer, VkImage image, uin
 	                       1,
 	                       &region);
 
-	endSingleTimeCommands(device, commandBuffer);
+	device.endSingleTimeCommands(commandBuffer);
 }
 
 ImageTexture::ImageTexture(VulkanDevice &device, const std::string &imagePath, TextureConfig config) : device_(device) {
@@ -204,7 +159,7 @@ ImageTexture::ImageTexture(VulkanDevice &device, const std::string &imagePath, T
 		                  static_cast<uint32_t>(width),
 		                  static_cast<uint32_t>(height));
 		// Generate the complete mip chain with linear blits when supported.
-		VkCommandBuffer command = beginSingleTimeCommands(device_);
+		VkCommandBuffer command = device_.beginSingleTimeCommands();
 		VkImageMemoryBarrier barrier{};
 		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		barrier.image = image;
@@ -250,7 +205,7 @@ ImageTexture::ImageTexture(VulkanDevice &device, const std::string &imagePath, T
 			vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
 			                     0, nullptr, 0, nullptr, 1, &barrier);
 		}
-		endSingleTimeCommands(device_, command);
+		device_.endSingleTimeCommands(command);
 
 		// create image view
 		VkImageViewCreateInfo viewInfo{};

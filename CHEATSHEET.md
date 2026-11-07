@@ -103,6 +103,43 @@ image_set.bind(frame.commandBuffer(), layout.handle());
 The shader uses a combined sampler at set `0`, binding `0` by default. See
 `textured_quad`.
 
+## Offscreen rendering
+
+```cpp
+oxide::OffscreenTarget target(device, {
+    .width  = 800,
+    .height = 600,
+});
+
+oxide::PipelineConfigInfo config = oxide::Pipeline::defaultPipelineConfigInfo();
+config.setRenderPass(target.renderPass());
+oxide::Pipeline scene(device, shaders.graphics("scene"), config);
+
+VkCommandBuffer command = device.beginSingleTimeCommands();
+target.beginRenderPass(command);
+target.setViewportAndScissor(command);
+scene.bind(command);
+scene.draw(command, 3);
+target.endRenderPass(command);
+device.endSingleTimeCommands(command);
+
+target.savePng("frame.png");
+```
+
+The color attachment ends in `SHADER_READ_ONLY_OPTIMAL`, so another pass can
+sample it directly:
+
+```cpp
+oxide::TextureDescriptorSet image_set(
+    device, target.colorView(), target.sampler());
+oxide::PipelineLayout layout(device, { image_set.layout() }, {});
+image_set.bind(command, layout.handle());
+```
+
+Use `readPixels()` to get tightly packed RGBA8 bytes instead of writing a file.
+Construct `VulkanDevice` without a window for headless rendering. See
+`offscreen_png` and `render_to_texture`.
+
 ## Input and timing
 
 ```cpp

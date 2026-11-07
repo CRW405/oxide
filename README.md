@@ -18,6 +18,7 @@ It handles the setup that most Vulkan programs need:
 - Texture loading and sampled image descriptor sets
 - Uniform buffers and uniform buffer descriptor sets
 - Pipeline layouts and graphics pipelines
+- Offscreen and headless render targets with sampling and PNG readback
 
 The code keeps Vulkan objects visible and explicit. It reduces repeated setup
 without hiding how Vulkan works.
@@ -39,6 +40,8 @@ directory:
 - `examples/sierpinski` — A fragment-shader fractal driven by push constants
 - `examples/hiss` — Animated cube using a per-frame UBO and push constants meant to copy Control's hiss liquidy effect. Smoke effect coming soon.
 - `examples/multiple_pipelines` — Two graphics shader pairs plus a compute pass sharing one device and frame
+- `examples/offscreen_png` — Headless rendering into an offscreen image and writing it to a PNG
+- `examples/render_to_texture` — Sampling an offscreen render target in a second pass
 
 ## Use Case
 
@@ -107,7 +110,6 @@ arguments are still evaluated.
 ## TODO
 
 - MSAA, multiple render targets, and resolve
-- Offscreen and headless rendering
 - Shader reflection and specialization constants
 - OBJ reader
 - GLTF reader
@@ -139,3 +141,9 @@ If the window changes size, the context recreates the swapchain and the
 resources that depend on it. `beginFrameScope()` returns an inactive scope while that
 work is being done, so the application can skip that iteration. If the surface
 format changes, `SwapchainPipeline` rebuilds its pipeline automatically.
+
+For offscreen work, create an `OffscreenTarget` and record its pass with
+`beginRenderPass()`/`endRenderPass()`. The color image finishes in a sampled
+layout, so a later pass can bind it through `TextureDescriptorSet`, or
+`readPixels()`/`savePng()` can copy it back. Constructing `VulkanDevice` without
+a window makes the same path fully headless.

@@ -21,7 +21,15 @@ find_path(STB_INCLUDE_DIR NAMES stb_image.h
     PATH_SUFFIXES stb
 )
 if(NOT STB_INCLUDE_DIR)
-    message(FATAL_ERROR "stb headers not found!")
+    message(FATAL_ERROR "stb_image.h not found!")
+endif()
+
+find_path(STB_WRITE_INCLUDE_DIR NAMES stb_image_write.h
+    PATHS /usr/include/stb /usr/local/include/stb
+    PATH_SUFFIXES stb
+)
+if(NOT STB_WRITE_INCLUDE_DIR)
+    message(FATAL_ERROR "stb_image_write.h not found!")
 endif()
 
 function(oxide_enable_warnings target)
@@ -44,7 +52,10 @@ target_include_directories(oxide PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
-target_include_directories(oxide PRIVATE ${STB_INCLUDE_DIR})
+target_include_directories(oxide SYSTEM PRIVATE
+    ${STB_INCLUDE_DIR}
+    ${STB_WRITE_INCLUDE_DIR}
+)
 target_link_libraries(oxide PUBLIC Vulkan::Vulkan glfw)
 target_compile_features(oxide PUBLIC cxx_std_20)
 target_compile_definitions(oxide PUBLIC

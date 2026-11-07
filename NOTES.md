@@ -44,9 +44,11 @@ window. It also handles resize and swapchain recreation.
 The backend uses a data-oriented resource core. `ResourceRegistry` stores
 Vulkan records behind typed generational handles, so stale handles fail lookup
 instead of silently referring to reused slots. It owns buffers, images, shader
-modules, pipelines, descriptor layouts/pools, and pipeline layouts. Swapchain
-and frame synchronization objects remain owned by `VulkanContext` because
-their lifetime is tied to one presentation surface.
+modules, pipelines, descriptor layouts/pools, pipeline layouts, render passes,
+and framebuffers. Swapchain images and frame synchronization objects remain
+owned by `VulkanContext` because their lifetime is tied to one presentation
+surface; swapchain-specific render passes and framebuffers stay with it for the
+same reason.
 
 Shader modules are cached by file path and reference-counted. Pooled memory
 returns freed ranges to the allocator and coalesces adjacent ranges for reuse.
@@ -58,11 +60,24 @@ context in teardown order. `FrameScope` begins a render pass and submits the
 frame when the scope ends. `SwapchainPipeline` rebuilds a graphics pipeline
 when a swapchain format change replaces its render pass.
 
+`OffscreenTarget` owns a color image, optional depth image, render pass,
+framebuffer, and sampler outside the swapchain. Like the other wrappers, it
+registers those device objects with `ResourceRegistry` and stores typed handles
+instead of raw Vulkan objects. Its color attachment finishes every pass in
+`SHADER_READ_ONLY_OPTIMAL`, so a later `TextureDescriptorSet` can sample it
+without a manual layout transition. `readPixels()` copies the image into
+tightly packed RGBA8 bytes and `savePng()` writes that data with
+`stb_image_write`, which the build requires. Because the target depends only on
+`VulkanDevice`, the same path works headless when the device is constructed
+without a window.
+
 `ShaderLibrary` keeps shader selection readable:
 `shaders.graphics("water")` resolves `water.vert.spv` and `water.frag.spv`,
 while `shaders.compute("particles")` resolves `particles.comp.spv`.
-Compute-only programs can construct `VulkanDevice("Particles")` without GLFW
-or a presentation context.
+Compute-only and offscreen programs can construct `VulkanDevice("Particles")`
+without GLFW or a presentation context. `beginSingleTimeCommands()` and
+`endSingleTimeCommands()` cover one-shot work such as uploads, readback, and
+standalone headless frames.
 
 `DeviceIdleGuard` should be declared after GPU resources when using the
 lower-level ownership API. It waits for the device before those resources are
@@ -76,7 +91,8 @@ Uniform and storage buffers use host-visible memory for simple updates and
 readback. Vertex and index buffers use staging uploads into device-local
 memory. `Buffer::read()` copies results back after the device is idle.
 
-The project uses C++20, GLFW, Vulkan, and `glslc` or `glslangValidator`.
+The project uses C++20, GLFW, Vulkan, `stb_image`/`stb_image_write`, and `glslc`
+or `glslangValidator`.
 Examples keep GLSL in `examples/<name>/shaders`; CMake compiles it to SPIR-V
 next to the binary and defines `OXIDE_SHADER_DIR` and `OXIDE_ASSET_DIR`.
 
@@ -87,7 +103,8 @@ next to the binary and defines `OXIDE_SHADER_DIR` and `OXIDE_ASSET_DIR`.
 - **Device** — `include/oxide/vulkan/device/` and `src/vulkan/device/` contain
   instance/device setup, queue selection, device ranking, and pooled memory.
 - **Frame** — `include/oxide/vulkan/frame/` and `src/vulkan/frame/` contain
-  surface, swapchain, frame synchronization, and frame recording.
+  surface, swapchain, offscreen targets, frame synchronization, and frame
+  recording.
 - **Pipeline** — `include/oxide/vulkan/pipeline/` and `src/vulkan/pipeline/`
   contain pipeline layouts, shader lookup, pipeline configuration, and graphics
   and compute pipelines.

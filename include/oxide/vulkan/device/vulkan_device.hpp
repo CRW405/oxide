@@ -64,6 +64,12 @@ class VulkanDevice {
 	[[nodiscard]] const ResourceRegistry &resources() const noexcept { return resources_; }
 	void                           waitIdle() const;
 
+	// Record and submit one short command buffer, then wait for the graphics
+	// queue to finish. Useful for uploads, layout transitions, and headless
+	// rendering where there is no swapchain frame loop.
+	[[nodiscard]] VkCommandBuffer beginSingleTimeCommands() const;
+	void                          endSingleTimeCommands(VkCommandBuffer commandBuffer) const;
+
 	// Wait for the device without throwing. Intended for destructors and other
 	// cleanup paths where an exception would terminate the process.
 	void waitIdleNoThrow() const noexcept;

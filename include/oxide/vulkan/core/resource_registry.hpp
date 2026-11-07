@@ -23,7 +23,9 @@ class ResourceRegistry {
 		destroyPipelineLayouts(device);
 		destroyDescriptorPools(device);
 		destroyDescriptorLayouts(device);
+		destroyFramebuffers(device);
 		destroyImages(device);
+		destroyRenderPasses(device);
 		destroyBuffers(device);
 		buffers_.clear();
 		images_.clear();
@@ -32,6 +34,8 @@ class ResourceRegistry {
 		descriptor_layouts_.clear();
 		descriptor_pools_.clear();
 		pipeline_layouts_.clear();
+		render_passes_.clear();
+		framebuffers_.clear();
 		shader_keys_.clear();
 	}
 
@@ -74,6 +78,44 @@ class ResourceRegistry {
 	[[nodiscard]] ImageResource *image(ImageHandle handle) noexcept { return images_.get(handle); }
 	[[nodiscard]] const ImageResource *image(ImageHandle handle) const noexcept {
 		return images_.get(handle);
+	}
+
+	[[nodiscard]] RenderPassHandle registerRenderPass(RenderPassResource resource) {
+		return render_passes_.create(std::move(resource));
+	}
+	void unregisterRenderPass(RenderPassHandle handle) noexcept {
+		if (device_ != VK_NULL_HANDLE) {
+			if (auto *resource = render_passes_.get(handle); resource != nullptr &&
+			    resource->render_pass != VK_NULL_HANDLE) {
+				vkDestroyRenderPass(device_, resource->render_pass, nullptr);
+			}
+		}
+		render_passes_.destroy(handle);
+	}
+	[[nodiscard]] RenderPassResource *renderPass(RenderPassHandle handle) noexcept {
+		return render_passes_.get(handle);
+	}
+	[[nodiscard]] const RenderPassResource *renderPass(RenderPassHandle handle) const noexcept {
+		return render_passes_.get(handle);
+	}
+
+	[[nodiscard]] FramebufferHandle registerFramebuffer(FramebufferResource resource) {
+		return framebuffers_.create(std::move(resource));
+	}
+	void unregisterFramebuffer(FramebufferHandle handle) noexcept {
+		if (device_ != VK_NULL_HANDLE) {
+			if (auto *resource = framebuffers_.get(handle); resource != nullptr &&
+			    resource->framebuffer != VK_NULL_HANDLE) {
+				vkDestroyFramebuffer(device_, resource->framebuffer, nullptr);
+			}
+		}
+		framebuffers_.destroy(handle);
+	}
+	[[nodiscard]] FramebufferResource *framebuffer(FramebufferHandle handle) noexcept {
+		return framebuffers_.get(handle);
+	}
+	[[nodiscard]] const FramebufferResource *framebuffer(FramebufferHandle handle) const noexcept {
+		return framebuffers_.get(handle);
 	}
 
 	[[nodiscard]] ShaderHandle registerShader(ShaderResource resource) {
@@ -225,6 +267,24 @@ class ResourceRegistry {
 		});
 	}
 
+	void destroyFramebuffers(VkDevice device) noexcept {
+		framebuffers_.forEach([device](FramebufferResource &resource) {
+			if (resource.framebuffer != VK_NULL_HANDLE) {
+				vkDestroyFramebuffer(device, resource.framebuffer, nullptr);
+			}
+			resource.framebuffer = VK_NULL_HANDLE;
+		});
+	}
+
+	void destroyRenderPasses(VkDevice device) noexcept {
+		render_passes_.forEach([device](RenderPassResource &resource) {
+			if (resource.render_pass != VK_NULL_HANDLE) {
+				vkDestroyRenderPass(device, resource.render_pass, nullptr);
+			}
+			resource.render_pass = VK_NULL_HANDLE;
+		});
+	}
+
 	void destroyImages(VkDevice device) noexcept {
 		images_.forEach([device](ImageResource &resource) {
 			if (resource.sampler != VK_NULL_HANDLE) {
@@ -260,6 +320,8 @@ class ResourceRegistry {
 	ResourcePool<DescriptorLayoutResource, DescriptorLayoutTag> descriptor_layouts_;
 	ResourcePool<DescriptorPoolResource, DescriptorPoolTag> descriptor_pools_;
 	ResourcePool<PipelineLayoutResource, PipelineLayoutTag> pipeline_layouts_;
+	ResourcePool<RenderPassResource, RenderPassTag>         render_passes_;
+	ResourcePool<FramebufferResource, FramebufferTag>       framebuffers_;
 	std::unordered_map<std::string, ShaderHandle> shader_keys_;
 };
 

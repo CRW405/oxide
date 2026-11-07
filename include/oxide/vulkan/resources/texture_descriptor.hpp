@@ -13,9 +13,10 @@ class ImageTexture;
 // ============================================================================
 // Sampled image descriptor set
 //
-// Owns the descriptor set layout, pool, and set needed to sample one
-// ImageTexture. The Vulkan handles stay visible so they can be connected to a
-// PipelineLayout and bound while recording commands.
+// Owns the descriptor set layout, pool, and set needed to sample one image,
+// either an ImageTexture or an externally owned image view and sampler. The
+// Vulkan handles stay visible so they can be connected to a PipelineLayout and
+// bound while recording commands.
 //
 // The defaults describe the common case: one combined image sampler exposed at
 // binding 0 to the fragment stage. Override the binding or stage in the
@@ -33,6 +34,16 @@ class TextureDescriptorSet {
 	TextureDescriptorSet(
 	    VulkanDevice       &device,
 	    const ImageTexture &texture,
+	    std::uint32_t       binding    = DEFAULT_BINDING,
+	    VkShaderStageFlags  stageFlags = DEFAULT_STAGE_FLAGS);
+
+	// Bind an externally owned image view and sampler, such as an
+	// OffscreenTarget. The caller keeps both objects alive for as long as this
+	// descriptor set is used.
+	TextureDescriptorSet(
+	    VulkanDevice       &device,
+	    VkImageView         imageView,
+	    VkSampler           sampler,
 	    std::uint32_t       binding    = DEFAULT_BINDING,
 	    VkShaderStageFlags  stageFlags = DEFAULT_STAGE_FLAGS);
 
