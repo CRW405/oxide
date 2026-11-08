@@ -28,6 +28,7 @@ PipelineConfigInfo::PipelineConfigInfo(const PipelineConfigInfo &other)
       rasterizationInfo(other.rasterizationInfo),
       multisampleInfo(other.multisampleInfo),
       colorBlendAttachment(other.colorBlendAttachment),
+      colorBlendAttachments(other.colorBlendAttachments),
       colorBlendInfo(other.colorBlendInfo),
       depthStencilInfo(other.depthStencilInfo),
       dynamicStates(other.dynamicStates),
@@ -48,6 +49,7 @@ PipelineConfigInfo &PipelineConfigInfo::operator=(const PipelineConfigInfo &othe
 		rasterizationInfo    = other.rasterizationInfo;
 		multisampleInfo      = other.multisampleInfo;
 		colorBlendAttachment = other.colorBlendAttachment;
+		colorBlendAttachments = other.colorBlendAttachments;
 		colorBlendInfo       = other.colorBlendInfo;
 		depthStencilInfo     = other.depthStencilInfo;
 		dynamicStates        = other.dynamicStates;
@@ -69,6 +71,7 @@ PipelineConfigInfo::PipelineConfigInfo(PipelineConfigInfo &&other) noexcept
       rasterizationInfo(other.rasterizationInfo),
       multisampleInfo(other.multisampleInfo),
       colorBlendAttachment(other.colorBlendAttachment),
+      colorBlendAttachments(std::move(other.colorBlendAttachments)),
       colorBlendInfo(other.colorBlendInfo),
       depthStencilInfo(other.depthStencilInfo),
       dynamicStates(std::move(other.dynamicStates)),
@@ -89,6 +92,7 @@ PipelineConfigInfo &PipelineConfigInfo::operator=(PipelineConfigInfo &&other) no
 		rasterizationInfo    = other.rasterizationInfo;
 		multisampleInfo      = other.multisampleInfo;
 		colorBlendAttachment = other.colorBlendAttachment;
+		colorBlendAttachments = std::move(other.colorBlendAttachments);
 		colorBlendInfo       = other.colorBlendInfo;
 		depthStencilInfo     = other.depthStencilInfo;
 		dynamicStates        = std::move(other.dynamicStates);
@@ -104,8 +108,15 @@ PipelineConfigInfo &PipelineConfigInfo::operator=(PipelineConfigInfo &&other) no
 }
 
 void PipelineConfigInfo::refreshInternalPointers() noexcept {
-	colorBlendInfo.pAttachments = &colorBlendAttachment;
-	dynamicStateInfo.pDynamicStates = dynamicStates.data();
+	if (colorBlendAttachments.empty()) {
+		colorBlendInfo.attachmentCount = 1;
+		colorBlendInfo.pAttachments    = &colorBlendAttachment;
+	} else {
+		colorBlendInfo.attachmentCount = static_cast<std::uint32_t>(colorBlendAttachments.size());
+		colorBlendInfo.pAttachments    = colorBlendAttachments.data();
+	}
+	dynamicStateInfo.dynamicStateCount = static_cast<std::uint32_t>(dynamicStates.size());
+	dynamicStateInfo.pDynamicStates    = dynamicStates.data();
 	vertexInputInfo.pVertexBindingDescriptions = vertexBindings_.data();
 	vertexInputInfo.vertexBindingDescriptionCount =
 	    static_cast<std::uint32_t>(vertexBindings_.size());
@@ -130,6 +141,31 @@ PipelineConfigInfo &PipelineConfigInfo::setRenderPass(VkRenderPass renderPass) n
 PipelineConfigInfo &PipelineConfigInfo::setPipelineLayout(
     BorrowedPipelineLayout pipelineLayout) noexcept {
 	this->pipelineLayout = pipelineLayout;
+	return *this;
+}
+
+PipelineConfigInfo &PipelineConfigInfo::setColorAttachmentCount(std::uint32_t count) {
+	if (count == 0) {
+		count = 1;
+	}
+
+	VkPipelineColorBlendAttachmentState state = colorBlendAttachment;
+	if (!colorBlendAttachments.empty()) {
+		state = colorBlendAttachments.front();
+	}
+	if (state.colorWriteMask == 0) {
+		state.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+		                       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	}
+
+	colorBlendAttachments.assign(count, state);
+	colorBlendAttachment = colorBlendAttachments.front();
+	refreshInternalPointers();
+	return *this;
+}
+
+PipelineConfigInfo &PipelineConfigInfo::setMultisampleCount(VkSampleCountFlagBits sampleCount) noexcept {
+	multisampleInfo.rasterizationSamples = sampleCount;
 	return *this;
 }
 

@@ -60,16 +60,33 @@ context in teardown order. `FrameScope` begins a render pass and submits the
 frame when the scope ends. `SwapchainPipeline` rebuilds a graphics pipeline
 when a swapchain format change replaces its render pass.
 
-`OffscreenTarget` owns a color image, optional depth image, render pass,
-framebuffer, and sampler outside the swapchain. Like the other wrappers, it
-registers those device objects with `ResourceRegistry` and stores typed handles
-instead of raw Vulkan objects. Its color attachment finishes every pass in
-`SHADER_READ_ONLY_OPTIMAL`, so a later `TextureDescriptorSet` can sample it
-without a manual layout transition. `readPixels()` copies the image into
-tightly packed RGBA8 bytes and `savePng()` writes that data with
+`OffscreenTarget` owns one or more color images, an optional depth image,
+render pass, framebuffer, and one sampler per resolved color image. Like the
+other wrappers, it registers those device objects with `ResourceRegistry` and
+stores typed handles instead of raw Vulkan objects. Its color attachments finish
+every pass in `SHADER_READ_ONLY_OPTIMAL`, so a later `TextureDescriptorSet` can
+sample them without a manual layout transition. `readPixels()` copies a resolved
+image into tightly packed RGBA8 bytes and `savePng()` writes that data with
 `stb_image_write`, which the build requires. Because the target depends only on
 `VulkanDevice`, the same path works headless when the device is constructed
 without a window.
+
+`OffscreenConfig::colorFormats` turns the target into an MRT render pass, with
+one fragment shader output and color blend attachment per format. Setting
+`sampleCount` above `VK_SAMPLE_COUNT_1_BIT` makes the color and depth images
+multisampled and adds a single-sample resolve attachment for every color target.
+The render pass resolves automatically at subpass end; `colorImage()`,
+`colorView()`, and `sampler()` refer to the resolved images, while
+`attachmentImage()` and `attachmentView()` expose the multisampled attachments.
+`beginRenderPass()` accepts either one clear color for all attachments or one
+per color attachment.
+
+`VulkanContext` applies the same pattern to window rendering through
+`SwapchainConfig::sampleCount`: it allocates a multisampled color image and
+depth image, renders into them, and resolves into the swapchain image before
+presentation. Unsupported sample counts fall back to `VK_SAMPLE_COUNT_1_BIT`
+with a warning. `VulkanDevice::supportsSampleCount()` probes format and usage
+combinations so callers can choose a valid count.
 
 `ShaderLibrary` keeps shader selection readable:
 `shaders.graphics("water")` resolves `water.vert.spv` and `water.frag.spv`,
@@ -166,6 +183,27 @@ The main Vulkan objects used here follow this order:
 Semaphores coordinate operations submitted to queues. Fences let the CPU check
 whether submitted work has completed. The context uses two frames in flight so
 the CPU can prepare another frame while the GPU works on the previous one.
+
+### MSAA, MRT, and resolve
+
+MSAA takes several color and depth samples per pixel and combines them at
+coverage edges, which smooths polygon boundaries without rendering at a higher
+resolution. A multisampled image cannot be sampled like an ordinary texture, so
+a render pass resolves it into a separate single-sample image. In Vulkan the
+subpass lists the resolve attachment in `pResolveAttachments`; the resolve
+happens automatically when the subpass ends.
+
+Multiple render targets let one fragment shader write several outputs in a
+single pass. Each output has its own color attachment, format, and blend state.
+The render pass and pipeline must agree on the number of color attachments, and
+the pipeline's `rasterizationSamples` must match the target's sample count. A
+common use is writing scene color plus auxiliary data such as a mask, normal, or
+material ID, then combining the resolved images in a later pass.
+
+The sample example renders a rotating triangle into two 4x MSAA attachments. The
+first output is scene color; the second is a glow mask. The offscreen target
+resolves both attachments, and a swapchain pass samples the two resolved images
+through separate descriptor sets. See `examples/msaa_mrt_resolve`.
 
 Swapchain images change layout as they move through a frame: they are acquired
 for rendering, used as color attachments, and transitioned for presentation.

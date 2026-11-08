@@ -391,6 +391,28 @@ QueueFamilies VulkanDevice::findQueueFamilies(VkPhysicalDevice device, VkSurface
 	return result;
 }
 
+bool VulkanDevice::supportsSampleCount(
+    VkFormat              format,
+    VkSampleCountFlagBits sampleCount,
+    VkImageUsageFlags     usage) const {
+	if (sampleCount == VK_SAMPLE_COUNT_1_BIT) {
+		return true;
+	}
+	if (format == VK_FORMAT_UNDEFINED || sampleCount == 0) {
+		return false;
+	}
+
+	VkImageFormatProperties properties{};
+	const VkResult result = vkGetPhysicalDeviceImageFormatProperties(physical_device_,
+	                                                                 format,
+	                                                                 VK_IMAGE_TYPE_2D,
+	                                                                 VK_IMAGE_TILING_OPTIMAL,
+	                                                                 usage,
+	                                                                 0,
+	                                                                 &properties);
+	return result == VK_SUCCESS && (properties.sampleCounts & sampleCount) != 0;
+}
+
 std::uint32_t VulkanDevice::findMemoryType(std::uint32_t typeFilter, VkMemoryPropertyFlags properties) const {
 	VkPhysicalDeviceMemoryProperties memory_properties;
 	vkGetPhysicalDeviceMemoryProperties(physical_device_, &memory_properties);

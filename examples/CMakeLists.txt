@@ -8,6 +8,7 @@ set(OXIDE_EXAMPLES
     multiple_pipelines
     offscreen_png
     render_to_texture
+    msaa_mrt_resolve
 )
 
 find_package(cglm CONFIG REQUIRED)

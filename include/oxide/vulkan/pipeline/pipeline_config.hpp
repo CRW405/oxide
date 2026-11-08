@@ -50,7 +50,16 @@ struct PipelineConfigInfo {
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo;
 	VkPipelineRasterizationStateCreateInfo rasterizationInfo;
 	VkPipelineMultisampleStateCreateInfo   multisampleInfo;
+
+	// Single-attachment default. Kept for the common case and for code that
+	// configures one color attachment directly.
 	VkPipelineColorBlendAttachmentState    colorBlendAttachment;
+
+	// Multiple render target blend states. When this vector is non-empty it
+	// replaces colorBlendAttachment and colorBlendInfo.attachmentCount follows
+	// its size. Use setColorAttachmentCount() to populate it.
+	std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments;
+
 	VkPipelineColorBlendStateCreateInfo    colorBlendInfo;
 	VkPipelineDepthStencilStateCreateInfo  depthStencilInfo;
 	std::vector<VkDynamicState>            dynamicStates;
@@ -62,6 +71,16 @@ struct PipelineConfigInfo {
 	PipelineConfigInfo &setVertexInput(const VertexInputDescription &description);
 	PipelineConfigInfo &setRenderPass(VkRenderPass renderPass) noexcept;
 	PipelineConfigInfo &setPipelineLayout(BorrowedPipelineLayout pipelineLayout) noexcept;
+
+	// Configure one or more color attachments. New attachments start with all
+	// color write bits enabled and blending disabled, copied from the existing
+	// single-attachment state. Call this before creating a pipeline that writes
+	// to multiple fragment shader outputs.
+	PipelineConfigInfo &setColorAttachmentCount(std::uint32_t count);
+
+	// Set the sample count used by the graphics pipeline. This must match the
+	// render target's sample count.
+	PipelineConfigInfo &setMultisampleCount(VkSampleCountFlagBits sampleCount) noexcept;
 
   private:
 	void refreshInternalPointers() noexcept;

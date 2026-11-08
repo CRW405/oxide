@@ -36,7 +36,13 @@ function(oxide_enable_warnings target)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4)
     else()
-        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror -DGLFW_USE_WAYLAND=ON)
+        # Config structs use default member initializers, so partial designated
+        # initializers are intentional and should not be treated as errors.
+        target_compile_options(${target} PRIVATE
+            -Wall -Wextra -Wpedantic -Werror
+            -Wno-missing-field-initializers
+            -DGLFW_USE_WAYLAND=ON
+        )
     endif()
 endfunction()
 

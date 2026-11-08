@@ -171,9 +171,16 @@ void VulkanContext::beginRenderPass(const Frame &frame, std::array<float, 4> cle
 		return;
 	}
 
-	VkClearValue clearValues[2]{};
-	std::copy(clearColor.begin(), clearColor.end(), clearValues[0].color.float32);
-	clearValues[1].depthStencil = { 1.0f, 0 };
+	// Clear values are indexed by attachment. With MSAA the resolve attachment
+	// sits between the color and depth attachments, so the depth clear must be
+	// placed after it rather than immediately after the color clear.
+	VkClearValue       clearValues[3]{};
+	std::uint32_t      clearValueCount = 0;
+	std::copy(clearColor.begin(), clearColor.end(), clearValues[clearValueCount++].color.float32);
+	if (sample_count_ != VK_SAMPLE_COUNT_1_BIT) {
+		clearValues[clearValueCount++] = VkClearValue{};
+	}
+	clearValues[clearValueCount++].depthStencil = { 1.0f, 0 };
 
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -181,7 +188,7 @@ void VulkanContext::beginRenderPass(const Frame &frame, std::array<float, 4> cle
 	renderPassInfo.framebuffer       = framebuffer(frame.imageIndex);
 	renderPassInfo.renderArea.offset = { 0, 0 };
 	renderPassInfo.renderArea.extent = swapchain_extent_;
-	renderPassInfo.clearValueCount   = 2;
+	renderPassInfo.clearValueCount   = clearValueCount;
 	renderPassInfo.pClearValues      = clearValues;
 	vkCmdBeginRenderPass(frame.commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 }

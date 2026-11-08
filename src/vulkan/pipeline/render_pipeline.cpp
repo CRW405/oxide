@@ -45,7 +45,10 @@ SwapchainPipeline::SwapchainPipeline(
     : SwapchainPipeline(context, device, shaders.vertex, shaders.fragment, std::move(configInfo)) {}
 
 void SwapchainPipeline::rebuild(VkRenderPass renderPass) {
+	// The pipeline must always match the context's render pass sample count,
+	// including after swapchain recreation falls back to a different count.
 	config_.setRenderPass(renderPass);
+	config_.setMultisampleCount(context_.sampleCount());
 	pipeline_ = std::make_unique<Pipeline>(device_, vertFilepath_, fragFilepath_, config_);
 }
 

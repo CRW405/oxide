@@ -44,6 +44,7 @@ VulkanContext::VulkanContext(
 		createSurface();
 		createSwapchain();
 		createDepthResources();
+		createColorResources();
 		createRenderPass();
 		createFramebuffers();
 		createCommandResources();
@@ -281,6 +282,16 @@ void VulkanContext::createSwapchain() {
 	checkVk(vkGetSwapchainImagesKHR(device_.device(), swapchain_, &image_count, swapchain_images_.data()),
 	        "query swapchain images");
 	swapchain_format_ = surface_format.format;
+
+	// MSAA is limited by the chosen swapchain format. Fall back early so the
+	// color, depth, render pass, and pipeline sample counts stay consistent.
+	sample_count_ = swapchain_config_.sampleCount;
+	if (sample_count_ != VK_SAMPLE_COUNT_1_BIT &&
+	    !device_.supportsSampleCount(swapchain_format_, sample_count_, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) {
+		OXIDE_LOG_WARNING << "requested sample count " << static_cast<int>(sample_count_)
+		                  << " is unsupported for the swapchain format; using VK_SAMPLE_COUNT_1_BIT";
+		sample_count_ = VK_SAMPLE_COUNT_1_BIT;
+	}
 	swapchain_image_views_.resize(image_count);
 
 	for (std::uint32_t index = 0; index < image_count; ++index) {
@@ -297,7 +308,7 @@ void VulkanContext::createSwapchain() {
 	}
 }
 
-VkFormat VulkanContext::findDepthFormat() const {
+VkFormat VulkanContext::findDepthFormat(VkSampleCountFlagBits sampleCount) const {
 	// Depth-stencil formats are not guaranteed to support attachment usage, so
 	// probe the preferred formats before committing to one.
 	constexpr VkFormat candidates[] = {
@@ -307,6 +318,10 @@ VkFormat VulkanContext::findDepthFormat() const {
 	};
 
 	for (VkFormat format : candidates) {
+		if (!device_.supportsSampleCount(format, sampleCount,
+		                                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)) {
+			continue;
+		}
 		VkFormatProperties properties{};
 		vkGetPhysicalDeviceFormatProperties(device_.physicalDevice(), format, &properties);
 		if ((properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0) {
@@ -317,7 +332,17 @@ VkFormat VulkanContext::findDepthFormat() const {
 }
 
 void VulkanContext::createDepthResources() {
-	depth_format_ = findDepthFormat();
+	try {
+		depth_format_ = findDepthFormat(sample_count_);
+	} catch (const std::exception &) {
+		if (sample_count_ == VK_SAMPLE_COUNT_1_BIT) {
+			throw;
+		}
+		OXIDE_LOG_WARNING << "requested sample count " << static_cast<int>(sample_count_)
+		                  << " is unsupported for depth; using VK_SAMPLE_COUNT_1_BIT";
+		sample_count_ = VK_SAMPLE_COUNT_1_BIT;
+		depth_format_ = findDepthFormat(sample_count_);
+	}
 
 	try {
 		VkImageCreateInfo image_info{};
@@ -327,7 +352,7 @@ void VulkanContext::createDepthResources() {
 		image_info.extent        = { swapchain_extent_.width, swapchain_extent_.height, 1 };
 		image_info.mipLevels     = 1;
 		image_info.arrayLayers   = 1;
-		image_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+		image_info.samples       = sample_count_;
 		image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
 		image_info.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 		image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
@@ -385,6 +410,75 @@ void VulkanContext::destroyDepthResources() noexcept {
 	depth_format_ = VK_FORMAT_UNDEFINED;
 }
 
+void VulkanContext::createColorResources() {
+	if (sample_count_ == VK_SAMPLE_COUNT_1_BIT) {
+		return;
+	}
+
+	try {
+		VkImageCreateInfo image_info{};
+		image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		image_info.imageType     = VK_IMAGE_TYPE_2D;
+		image_info.format        = swapchain_format_;
+		image_info.extent        = { swapchain_extent_.width, swapchain_extent_.height, 1 };
+		image_info.mipLevels     = 1;
+		image_info.arrayLayers   = 1;
+		image_info.samples       = sample_count_;
+		image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+		image_info.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+		image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		checkVk(vkCreateImage(device_.device(), &image_info, nullptr, &color_image_),
+		        "create multisample color image");
+
+		VkMemoryRequirements memory_requirements{};
+		vkGetImageMemoryRequirements(device_.device(), color_image_, &memory_requirements);
+
+		const DeviceMemoryAllocation allocation =
+		    device_.allocateMemory(memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		color_image_memory_        = allocation.memory;
+		color_image_memory_offset_ = allocation.offset;
+		checkVk(vkBindImageMemory(device_.device(), color_image_, color_image_memory_,
+		                          color_image_memory_offset_),
+		        "bind multisample color image memory");
+
+		VkImageViewCreateInfo view_info{};
+		view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		view_info.image                           = color_image_;
+		view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+		view_info.format                          = swapchain_format_;
+		view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+		view_info.subresourceRange.baseMipLevel   = 0;
+		view_info.subresourceRange.levelCount     = 1;
+		view_info.subresourceRange.baseArrayLayer = 0;
+		view_info.subresourceRange.layerCount     = 1;
+		checkVk(vkCreateImageView(device_.device(), &view_info, nullptr, &color_image_view_),
+		        "create multisample color image view");
+	} catch (...) {
+		destroyColorResources();
+		throw;
+	}
+}
+
+void VulkanContext::destroyColorResources() noexcept {
+	if (device_.device() == VK_NULL_HANDLE) {
+		return;
+	}
+	if (color_image_view_ != VK_NULL_HANDLE) {
+		vkDestroyImageView(device_.device(), color_image_view_, nullptr);
+		color_image_view_ = VK_NULL_HANDLE;
+	}
+	if (color_image_ != VK_NULL_HANDLE) {
+		vkDestroyImage(device_.device(), color_image_, nullptr);
+		color_image_ = VK_NULL_HANDLE;
+	}
+	if (color_image_memory_ != VK_NULL_HANDLE) {
+		device_.freeMemory({ color_image_memory_, color_image_memory_offset_, 0, 0, nullptr });
+		color_image_memory_        = VK_NULL_HANDLE;
+		color_image_memory_offset_ = 0;
+	}
+}
+
 void VulkanContext::recoverSurface() {
 	device_.waitIdleNoThrow();
 	destroyWindowResources();
@@ -395,6 +489,7 @@ void VulkanContext::recoverSurface() {
 	createSurface();
 	createSwapchain();
 	createDepthResources();
+	createColorResources();
 	createRenderPass();
 	createFramebuffers();
 	createCommandResources();
@@ -412,6 +507,7 @@ void VulkanContext::destroySwapchain(bool destroy_render_pass) {
 		vkDestroyImageView(device_.device(), view, nullptr);
 	}
 	swapchain_image_views_.clear();
+	destroyColorResources();
 	destroyDepthResources();
 	swapchain_images_.clear();
 
@@ -484,14 +580,19 @@ void VulkanContext::recreateSwapchain() {
 		return;
 	}
 	checkVk(vkDeviceWaitIdle(device_.device()), "wait for Vulkan device before recreating swapchain");
-	const VkFormat old_format = swapchain_format_;
+	const VkFormat              old_format       = swapchain_format_;
+	const VkSampleCountFlagBits old_sample_count = sample_count_;
 	destroySwapchain(false);
 	createSwapchain();
 	createDepthResources();
-	const bool render_pass_changed = swapchain_format_ != old_format;
+	createColorResources();
+	const bool render_pass_changed =
+	    swapchain_format_ != old_format || sample_count_ != old_sample_count;
 	if (render_pass_changed) {
-		OXIDE_LOG_WARNING << "swapchain format changed (" << static_cast<int>(old_format) << " -> "
-		                  << static_cast<int>(swapchain_format_)
+		OXIDE_LOG_WARNING << "swapchain format or sample count changed ("
+		                  << static_cast<int>(old_format) << " -> " << static_cast<int>(swapchain_format_)
+		                  << ", " << static_cast<int>(old_sample_count) << " -> "
+		                  << static_cast<int>(sample_count_)
 		                  << "); pipelines created for the old render pass must be recreated";
 		if (render_pass_ != VK_NULL_HANDLE) {
 			vkDestroyRenderPass(device_.device(), render_pass_, nullptr);
@@ -544,39 +645,68 @@ VkFramebuffer VulkanContext::framebuffer(std::uint32_t index) const {
 }
 
 void VulkanContext::createRenderPass() {
-	VkAttachmentDescription colorAttachment{};
-	colorAttachment.format         = swapchain_format_;
-	colorAttachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-	colorAttachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	colorAttachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-	colorAttachment.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	const bool multisampled = sample_count_ != VK_SAMPLE_COUNT_1_BIT;
 
-	VkAttachmentDescription depthAttachment{};
-	depthAttachment.format         = depth_format_;
-	depthAttachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-	depthAttachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	depthAttachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	depthAttachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-	depthAttachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	VkAttachmentDescription attachments[3]{};
+	std::uint32_t           attachment_count = 0;
 
-	VkAttachmentReference colorAttachmentRef{};
-	colorAttachmentRef.attachment = 0;
-	colorAttachmentRef.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	VkAttachmentDescription color_attachment{};
+	color_attachment.format         = swapchain_format_;
+	color_attachment.samples        = sample_count_;
+	color_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	color_attachment.storeOp        = multisampled ? VK_ATTACHMENT_STORE_OP_DONT_CARE
+	                                               : VK_ATTACHMENT_STORE_OP_STORE;
+	color_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	color_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+	color_attachment.finalLayout    = multisampled ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	                                               : VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	const std::uint32_t color_index = attachment_count;
+	attachments[attachment_count++] = color_attachment;
 
-	VkAttachmentReference depthAttachmentRef{};
-	depthAttachmentRef.attachment = 1;
-	depthAttachmentRef.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	VkAttachmentReference color_reference{};
+	color_reference.attachment = color_index;
+	color_reference.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference resolve_reference{};
+	if (multisampled) {
+		VkAttachmentDescription resolve_attachment{};
+		resolve_attachment.format         = swapchain_format_;
+		resolve_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
+		resolve_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		resolve_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+		resolve_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		resolve_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		resolve_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+		resolve_attachment.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		resolve_reference.attachment = attachment_count;
+		resolve_reference.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		attachments[attachment_count++] = resolve_attachment;
+	}
+
+	VkAttachmentDescription depth_attachment{};
+	depth_attachment.format         = depth_format_;
+	depth_attachment.samples        = sample_count_;
+	depth_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depth_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depth_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depth_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+	depth_attachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	const std::uint32_t depth_index = attachment_count;
+	attachments[attachment_count++] = depth_attachment;
+
+	VkAttachmentReference depth_reference{};
+	depth_reference.attachment = depth_index;
+	depth_reference.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 	VkSubpassDescription subpass{};
 	subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	subpass.colorAttachmentCount    = 1;
-	subpass.pColorAttachments       = &colorAttachmentRef;
-	subpass.pDepthStencilAttachment = &depthAttachmentRef;
+	subpass.pColorAttachments       = &color_reference;
+	subpass.pResolveAttachments     = multisampled ? &resolve_reference : nullptr;
+	subpass.pDepthStencilAttachment = &depth_reference;
 
 	VkSubpassDependency colorDependency{};
 	colorDependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
@@ -597,12 +727,11 @@ void VulkanContext::createRenderPass() {
 	depthDependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
 	                                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-	const VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment };
-	const VkSubpassDependency    dependencies[]  = { colorDependency, depthDependency };
+	const VkSubpassDependency dependencies[] = { colorDependency, depthDependency };
 
 	VkRenderPassCreateInfo renderPassInfo{};
 	renderPassInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	renderPassInfo.attachmentCount = 2;
+	renderPassInfo.attachmentCount = attachment_count;
 	renderPassInfo.pAttachments    = attachments;
 	renderPassInfo.subpassCount    = 1;
 	renderPassInfo.pSubpasses      = &subpass;
@@ -614,14 +743,21 @@ void VulkanContext::createRenderPass() {
 }
 
 void VulkanContext::createFramebuffers() {
+	const bool multisampled = sample_count_ != VK_SAMPLE_COUNT_1_BIT;
 	swapchain_framebuffers_.resize(swapchain_image_views_.size());
 	for (size_t i = 0; i < swapchain_image_views_.size(); i++) {
-		VkImageView attachments[] = { swapchain_image_views_[i], depth_image_view_ };
+		VkImageView attachments[3]{};
+		std::uint32_t attachment_count = 0;
+		if (multisampled) {
+			attachments[attachment_count++] = color_image_view_;
+		}
+		attachments[attachment_count++] = swapchain_image_views_[i];
+		attachments[attachment_count++] = depth_image_view_;
 
 		VkFramebufferCreateInfo framebufferInfo{};
 		framebufferInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		framebufferInfo.renderPass      = render_pass_;
-		framebufferInfo.attachmentCount = 2;
+		framebufferInfo.attachmentCount = attachment_count;
 		framebufferInfo.pAttachments    = attachments;
 		framebufferInfo.width           = swapchain_extent_.width;
 		framebufferInfo.height          = swapchain_extent_.height;

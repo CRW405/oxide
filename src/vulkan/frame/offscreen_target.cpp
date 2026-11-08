@@ -9,7 +9,9 @@
 
 #include <algorithm>
 #include <stdexcept>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace oxide {
 
@@ -71,8 +73,26 @@ OffscreenTarget::OffscreenTarget(VulkanDevice &device, const OffscreenConfig &co
 	if (config_.width == 0 || config_.height == 0) {
 		throw invalidArgument("offscreen target requires non-zero width and height");
 	}
-	if (config_.colorFormat == VK_FORMAT_UNDEFINED) {
-		throw invalidArgument("offscreen target requires a color format");
+	if (config_.sampleCount == 0) {
+		throw invalidArgument("offscreen target requires a valid sample count");
+	}
+
+	color_formats_ = config_.colorFormats;
+	if (color_formats_.empty()) {
+		color_formats_.push_back(config_.colorFormat);
+	}
+	for (VkFormat format : color_formats_) {
+		if (format == VK_FORMAT_UNDEFINED) {
+			throw invalidArgument("offscreen target requires a color format");
+		}
+	}
+
+	VkPhysicalDeviceProperties properties{};
+	vkGetPhysicalDeviceProperties(device_.physicalDevice(), &properties);
+	if (color_formats_.size() > properties.limits.maxColorAttachments) {
+		throw invalidArgument("offscreen target requests " + std::to_string(color_formats_.size()) +
+		                      " color attachments but the device supports at most " +
+		                      std::to_string(properties.limits.maxColorAttachments));
 	}
 
 	try {
@@ -82,7 +102,7 @@ OffscreenTarget::OffscreenTarget(VulkanDevice &device, const OffscreenConfig &co
 		}
 		createRenderPass();
 		createFramebuffer();
-		createSampler();
+		createSamplers();
 		transitionToShaderRead();
 	} catch (...) {
 		destroyResources();
@@ -94,74 +114,202 @@ OffscreenTarget::~OffscreenTarget() {
 	destroyResources();
 }
 
-void OffscreenTarget::createColorResources() {
-	VkFormatProperties properties{};
-	vkGetPhysicalDeviceFormatProperties(device_.physicalDevice(), config_.colorFormat, &properties);
-	const VkFormatFeatureFlags required = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
-	                                      VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-	                                      VK_FORMAT_FEATURE_TRANSFER_SRC_BIT;
-	if ((properties.optimalTilingFeatures & required) != required) {
-		throw runtimeError(
-		    "offscreen color format does not support color attachment, sampling, and transfer source");
-	}
+const ImageResource *OffscreenTarget::imageResource(const ImageHandle &handle) const noexcept {
+	return device_.resources().image(handle);
+}
 
+VkImage OffscreenTarget::imageFor(const ImageHandle &handle) const noexcept {
+	const auto *resource = imageResource(handle);
+	return resource == nullptr ? VK_NULL_HANDLE : resource->image;
+}
+
+VkImageView OffscreenTarget::viewFor(const ImageHandle &handle) const noexcept {
+	const auto *resource = imageResource(handle);
+	return resource == nullptr ? VK_NULL_HANDLE : resource->view;
+}
+
+VkSampler OffscreenTarget::samplerFor(const ImageHandle &handle) const noexcept {
+	const auto *resource = imageResource(handle);
+	return resource == nullptr ? VK_NULL_HANDLE : resource->sampler;
+}
+
+const ImageHandle &OffscreenTarget::resolvedHandle(std::uint32_t index) const {
+	if (!resolve_images_.empty()) {
+		return resolve_images_[index];
+	}
+	return color_images_[index];
+}
+
+VkFormat OffscreenTarget::colorFormat(std::uint32_t index) const noexcept {
+	return index < color_formats_.size() ? color_formats_[index] : VK_FORMAT_UNDEFINED;
+}
+
+VkImage OffscreenTarget::colorImage(std::uint32_t index) const noexcept {
+	if (index >= colorCount()) {
+		return VK_NULL_HANDLE;
+	}
+	return imageFor(resolvedHandle(index));
+}
+
+VkImageView OffscreenTarget::colorView(std::uint32_t index) const noexcept {
+	if (index >= colorCount()) {
+		return VK_NULL_HANDLE;
+	}
+	return viewFor(resolvedHandle(index));
+}
+
+VkSampler OffscreenTarget::sampler(std::uint32_t index) const noexcept {
+	if (index >= colorCount()) {
+		return VK_NULL_HANDLE;
+	}
+	return samplerFor(resolvedHandle(index));
+}
+
+VkImage OffscreenTarget::attachmentImage(std::uint32_t index) const noexcept {
+	if (index >= color_images_.size()) {
+		return VK_NULL_HANDLE;
+	}
+	return imageFor(color_images_[index]);
+}
+
+VkImageView OffscreenTarget::attachmentView(std::uint32_t index) const noexcept {
+	if (index >= color_images_.size()) {
+		return VK_NULL_HANDLE;
+	}
+	return viewFor(color_images_[index]);
+}
+
+VkImage OffscreenTarget::resolveImage(std::uint32_t index) const noexcept {
+	if (index >= colorCount()) {
+		return VK_NULL_HANDLE;
+	}
+	return imageFor(resolvedHandle(index));
+}
+
+VkImageView OffscreenTarget::resolveView(std::uint32_t index) const noexcept {
+	if (index >= colorCount()) {
+		return VK_NULL_HANDLE;
+	}
+	return viewFor(resolvedHandle(index));
+}
+
+ImageHandle OffscreenTarget::createImage(
+    VkFormat              format,
+    VkSampleCountFlagBits sampleCount,
+    VkImageUsageFlags     usage,
+    VkImageAspectFlags    aspectMask,
+    const char           *label) {
 	VkImageCreateInfo image_info{};
 	image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	image_info.imageType     = VK_IMAGE_TYPE_2D;
-	image_info.format        = config_.colorFormat;
+	image_info.format        = format;
 	image_info.extent        = { config_.width, config_.height, 1 };
 	image_info.mipLevels     = 1;
 	image_info.arrayLayers   = 1;
-	image_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+	image_info.samples       = sampleCount;
 	image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
-	image_info.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-	                           VK_IMAGE_USAGE_SAMPLED_BIT |
-	                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-	                           config_.imageUsage;
+	image_info.usage         = usage;
 	image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
 	image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-	VkImage image = VK_NULL_HANDLE;
+	const std::string description = std::string("offscreen ") + label;
+	VkImage           image       = VK_NULL_HANDLE;
 	checkVk(vkCreateImage(device_.device(), &image_info, nullptr, &image),
-	        "create offscreen color image");
+	        "create " + description + " image");
+
+	ImageHandle handle{};
 	try {
-		color_image_ = device_.resources().registerImage(
+		handle = device_.resources().registerImage(
 		    { image, VK_NULL_HANDLE, 0, 0, VK_NULL_HANDLE, VK_NULL_HANDLE });
 	} catch (...) {
 		vkDestroyImage(device_.device(), image, nullptr);
 		throw;
 	}
 
-	VkMemoryRequirements requirements{};
-	vkGetImageMemoryRequirements(device_.device(), image, &requirements);
-	const DeviceMemoryAllocation allocation =
-	    device_.allocateMemory(requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	try {
+		ImageResource *resource = device_.resources().image(handle);
+		if (resource == nullptr) {
+			throw runtimeError(description + " resource is missing");
+		}
 
-	ImageResource *resource = device_.resources().image(color_image_);
-	if (resource == nullptr) {
-		throw runtimeError("offscreen color image resource is missing");
+		VkMemoryRequirements requirements{};
+		vkGetImageMemoryRequirements(device_.device(), image, &requirements);
+		const DeviceMemoryAllocation allocation =
+		    device_.allocateMemory(requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		resource->memory = allocation.memory;
+		resource->offset = allocation.offset;
+		resource->size   = allocation.size;
+		checkVk(vkBindImageMemory(device_.device(), image, allocation.memory, allocation.offset),
+		        "bind " + description + " image memory");
+
+		VkImageViewCreateInfo view_info{};
+		view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		view_info.image                           = image;
+		view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+		view_info.format                          = format;
+		view_info.subresourceRange.aspectMask     = aspectMask;
+		view_info.subresourceRange.baseMipLevel   = 0;
+		view_info.subresourceRange.levelCount     = 1;
+		view_info.subresourceRange.baseArrayLayer = 0;
+		view_info.subresourceRange.layerCount     = 1;
+
+		VkImageView view = VK_NULL_HANDLE;
+		checkVk(vkCreateImageView(device_.device(), &view_info, nullptr, &view),
+		        "create " + description + " image view");
+		resource->view = view;
+	} catch (...) {
+		releaseImage(handle);
+		throw;
 	}
-	resource->memory = allocation.memory;
-	resource->offset = allocation.offset;
-	resource->size   = allocation.size;
-	checkVk(vkBindImageMemory(device_.device(), image, allocation.memory, allocation.offset),
-	        "bind offscreen color image memory");
+	return handle;
+}
 
-	VkImageViewCreateInfo view_info{};
-	view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	view_info.image                           = image;
-	view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-	view_info.format                          = config_.colorFormat;
-	view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-	view_info.subresourceRange.baseMipLevel   = 0;
-	view_info.subresourceRange.levelCount     = 1;
-	view_info.subresourceRange.baseArrayLayer = 0;
-	view_info.subresourceRange.layerCount     = 1;
+void OffscreenTarget::createColorResources() {
+	const VkImageUsageFlags sampled_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+	                                        VK_IMAGE_USAGE_SAMPLED_BIT |
+	                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+	                                        config_.imageUsage;
+	const VkFormatFeatureFlags required = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
+	                                      VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+	                                      VK_FORMAT_FEATURE_TRANSFER_SRC_BIT;
 
-	VkImageView view = VK_NULL_HANDLE;
-	checkVk(vkCreateImageView(device_.device(), &view_info, nullptr, &view),
-	        "create offscreen color image view");
-	resource->view = view;
+	color_images_.reserve(color_formats_.size());
+	if (isMultisampled()) {
+		resolve_images_.reserve(color_formats_.size());
+	}
+
+	for (VkFormat format : color_formats_) {
+		VkFormatProperties properties{};
+		vkGetPhysicalDeviceFormatProperties(device_.physicalDevice(), format, &properties);
+		if ((properties.optimalTilingFeatures & required) != required) {
+			throw runtimeError(
+			    "offscreen color format does not support color attachment, sampling, and transfer source");
+		}
+
+		if (isMultisampled()) {
+			if (!device_.supportsSampleCount(format, config_.sampleCount, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) {
+				throw runtimeError("offscreen color format does not support the requested sample count " +
+				                   std::to_string(static_cast<int>(config_.sampleCount)));
+			}
+			color_images_.push_back(createImage(format,
+			                                    config_.sampleCount,
+			                                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			                                    VK_IMAGE_ASPECT_COLOR_BIT,
+			                                    "multisample color"));
+			resolve_images_.push_back(createImage(format,
+			                                      VK_SAMPLE_COUNT_1_BIT,
+			                                      sampled_usage,
+			                                      VK_IMAGE_ASPECT_COLOR_BIT,
+			                                      "resolve color"));
+		} else {
+			color_images_.push_back(createImage(format,
+			                                    VK_SAMPLE_COUNT_1_BIT,
+			                                    sampled_usage,
+			                                    VK_IMAGE_ASPECT_COLOR_BIT,
+			                                    "color"));
+		}
+	}
 }
 
 VkFormat OffscreenTarget::findDepthFormat() const {
@@ -172,6 +320,10 @@ VkFormat OffscreenTarget::findDepthFormat() const {
 	};
 
 	for (VkFormat format : candidates) {
+		if (!device_.supportsSampleCount(format, config_.sampleCount,
+		                                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)) {
+			continue;
+		}
 		VkFormatProperties properties{};
 		vkGetPhysicalDeviceFormatProperties(device_.physicalDevice(), format, &properties);
 		if ((properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0) {
@@ -183,92 +335,74 @@ VkFormat OffscreenTarget::findDepthFormat() const {
 
 void OffscreenTarget::createDepthResources() {
 	depth_format_ = findDepthFormat();
-
-	VkImageCreateInfo image_info{};
-	image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	image_info.imageType     = VK_IMAGE_TYPE_2D;
-	image_info.format        = depth_format_;
-	image_info.extent        = { config_.width, config_.height, 1 };
-	image_info.mipLevels     = 1;
-	image_info.arrayLayers   = 1;
-	image_info.samples       = VK_SAMPLE_COUNT_1_BIT;
-	image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
-	image_info.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-	image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
-	image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-	VkImage image = VK_NULL_HANDLE;
-	checkVk(vkCreateImage(device_.device(), &image_info, nullptr, &image),
-	        "create offscreen depth image");
-	try {
-		depth_image_ = device_.resources().registerImage(
-		    { image, VK_NULL_HANDLE, 0, 0, VK_NULL_HANDLE, VK_NULL_HANDLE });
-	} catch (...) {
-		vkDestroyImage(device_.device(), image, nullptr);
-		throw;
-	}
-
-	VkMemoryRequirements requirements{};
-	vkGetImageMemoryRequirements(device_.device(), image, &requirements);
-	const DeviceMemoryAllocation allocation =
-	    device_.allocateMemory(requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-	ImageResource *resource = device_.resources().image(depth_image_);
-	if (resource == nullptr) {
-		throw runtimeError("offscreen depth image resource is missing");
-	}
-	resource->memory = allocation.memory;
-	resource->offset = allocation.offset;
-	resource->size   = allocation.size;
-	checkVk(vkBindImageMemory(device_.device(), image, allocation.memory, allocation.offset),
-	        "bind offscreen depth image memory");
-
-	VkImageViewCreateInfo view_info{};
-	view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	view_info.image                           = image;
-	view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-	view_info.format                          = depth_format_;
-	view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
-	view_info.subresourceRange.baseMipLevel   = 0;
-	view_info.subresourceRange.levelCount     = 1;
-	view_info.subresourceRange.baseArrayLayer = 0;
-	view_info.subresourceRange.layerCount     = 1;
+	VkImageAspectFlags aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
 	if (hasStencilComponent(depth_format_)) {
-		view_info.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
 	}
-
-	VkImageView view = VK_NULL_HANDLE;
-	checkVk(vkCreateImageView(device_.device(), &view_info, nullptr, &view),
-	        "create offscreen depth image view");
-	resource->view = view;
+	depth_image_ = createImage(depth_format_,
+	                           config_.sampleCount,
+	                           VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+	                           aspect,
+	                           "depth");
 }
 
 void OffscreenTarget::createRenderPass() {
-	// The color image begins and ends in the sampled layout. That makes every
-	// completed offscreen pass immediately sampleable by a later pass.
-	VkAttachmentDescription color_attachment{};
-	color_attachment.format         = config_.colorFormat;
-	color_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-	color_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	color_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-	color_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	color_attachment.initialLayout  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	color_attachment.finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	// The resolved color images begin and end in the sampled layout. That makes
+	// every completed offscreen pass immediately sampleable by a later pass.
+	std::vector<VkAttachmentDescription> attachments;
+	std::vector<VkAttachmentReference>   color_references;
+	std::vector<VkAttachmentReference>   resolve_references;
 
-	VkAttachmentReference color_reference{};
-	color_reference.attachment = 0;
-	color_reference.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	attachments.reserve(color_formats_.size() * 2 + (hasDepth() ? 1 : 0));
+	color_references.reserve(color_formats_.size());
+	if (isMultisampled()) {
+		resolve_references.reserve(color_formats_.size());
+	}
 
-	VkAttachmentDescription                depth_attachment{};
-	VkAttachmentReference                  depth_reference{};
-	std::array<VkAttachmentDescription, 2> attachments{};
-	attachments[0]                 = color_attachment;
-	std::uint32_t attachment_count = 1;
+	for (VkFormat format : color_formats_) {
+		VkAttachmentDescription color_attachment{};
+		color_attachment.format         = format;
+		color_attachment.samples        = config_.sampleCount;
+		color_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		color_attachment.storeOp        = isMultisampled() ? VK_ATTACHMENT_STORE_OP_DONT_CARE
+		                                                   : VK_ATTACHMENT_STORE_OP_STORE;
+		color_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		color_attachment.initialLayout  = isMultisampled() ? VK_IMAGE_LAYOUT_UNDEFINED
+		                                                   : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		color_attachment.finalLayout    = isMultisampled() ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+		                                                   : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
+		VkAttachmentReference color_reference{};
+		color_reference.attachment = static_cast<std::uint32_t>(attachments.size());
+		color_reference.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		attachments.push_back(color_attachment);
+		color_references.push_back(color_reference);
+
+		if (isMultisampled()) {
+			VkAttachmentDescription resolve_attachment{};
+			resolve_attachment.format         = format;
+			resolve_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
+			resolve_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			resolve_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+			resolve_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			resolve_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			resolve_attachment.initialLayout  = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			resolve_attachment.finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+			VkAttachmentReference resolve_reference{};
+			resolve_reference.attachment = static_cast<std::uint32_t>(attachments.size());
+			resolve_reference.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			attachments.push_back(resolve_attachment);
+			resolve_references.push_back(resolve_reference);
+		}
+	}
+
+	VkAttachmentReference depth_reference{};
 	if (hasDepth()) {
+		VkAttachmentDescription depth_attachment{};
 		depth_attachment.format         = depth_format_;
-		depth_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
+		depth_attachment.samples        = config_.sampleCount;
 		depth_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depth_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		depth_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -276,19 +410,19 @@ void OffscreenTarget::createRenderPass() {
 		depth_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
 		depth_attachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-		depth_reference.attachment = 1;
+		depth_reference.attachment = static_cast<std::uint32_t>(attachments.size());
 		depth_reference.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		attachments[1]             = depth_attachment;
-		attachment_count           = 2;
+		attachments.push_back(depth_attachment);
 	}
 
 	VkSubpassDescription subpass{};
 	subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount    = 1;
-	subpass.pColorAttachments       = &color_reference;
+	subpass.colorAttachmentCount    = static_cast<std::uint32_t>(color_references.size());
+	subpass.pColorAttachments       = color_references.data();
+	subpass.pResolveAttachments     = isMultisampled() ? resolve_references.data() : nullptr;
 	subpass.pDepthStencilAttachment = hasDepth() ? &depth_reference : nullptr;
 
-	// Wait for any earlier sampling or transfer read of the color image before
+	// Wait for any earlier sampling or transfer read of a color image before
 	// clearing it, and for earlier depth writes before reusing the depth image.
 	VkSubpassDependency begin_dependency{};
 	begin_dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
@@ -309,8 +443,9 @@ void OffscreenTarget::createRenderPass() {
 	                                 VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
 	                                 VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-	// Make the completed color writes visible to a later sampled or transfer
-	// read. The final layout transition to SHADER_READ_ONLY is part of this.
+	// Make the completed color writes and resolves visible to a later sampled or
+	// transfer read. The final layout transition to SHADER_READ_ONLY is part of
+	// this.
 	VkSubpassDependency end_dependency{};
 	end_dependency.srcSubpass    = 0;
 	end_dependency.dstSubpass    = VK_SUBPASS_EXTERNAL;
@@ -324,13 +459,13 @@ void OffscreenTarget::createRenderPass() {
 
 	VkRenderPassCreateInfo render_pass_info{};
 	render_pass_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	render_pass_info.attachmentCount = attachment_count;
+	render_pass_info.attachmentCount = static_cast<std::uint32_t>(attachments.size());
 	render_pass_info.pAttachments    = attachments.data();
 	render_pass_info.subpassCount    = 1;
 	render_pass_info.pSubpasses      = &subpass;
 	render_pass_info.dependencyCount = 2;
 	render_pass_info.pDependencies   = dependencies;
-	VkRenderPass render_pass = VK_NULL_HANDLE;
+	VkRenderPass render_pass         = VK_NULL_HANDLE;
 	checkVk(vkCreateRenderPass(device_.device(), &render_pass_info, nullptr, &render_pass),
 	        "create offscreen render pass");
 	try {
@@ -342,16 +477,23 @@ void OffscreenTarget::createRenderPass() {
 }
 
 void OffscreenTarget::createFramebuffer() {
-	const ImageResource *depth_resource = device_.resources().image(depth_image_);
-	const std::array<VkImageView, 2> attachments = {
-		colorView(),
-		depth_resource == nullptr ? VK_NULL_HANDLE : depth_resource->view,
-	};
+	std::vector<VkImageView> attachments;
+	attachments.reserve(color_formats_.size() * 2 + (hasDepth() ? 1 : 0));
+
+	for (std::uint32_t index = 0; index < colorCount(); ++index) {
+		attachments.push_back(attachmentView(index));
+		if (isMultisampled()) {
+			attachments.push_back(resolveView(index));
+		}
+	}
+	if (hasDepth()) {
+		attachments.push_back(viewFor(depth_image_));
+	}
 
 	VkFramebufferCreateInfo info{};
 	info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 	info.renderPass      = renderPass();
-	info.attachmentCount = hasDepth() ? 2 : 1;
+	info.attachmentCount = static_cast<std::uint32_t>(attachments.size());
 	info.pAttachments    = attachments.data();
 	info.width           = config_.width;
 	info.height          = config_.height;
@@ -368,7 +510,7 @@ void OffscreenTarget::createFramebuffer() {
 	}
 }
 
-void OffscreenTarget::createSampler() {
+void OffscreenTarget::createSamplerFor(ImageHandle &image) {
 	VkSamplerCreateInfo info{};
 	info.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	info.magFilter               = config_.filter;
@@ -390,7 +532,7 @@ void OffscreenTarget::createSampler() {
 	checkVk(vkCreateSampler(device_.device(), &info, nullptr, &sampler),
 	        "create offscreen sampler");
 
-	ImageResource *resource = device_.resources().image(color_image_);
+	ImageResource *resource = device_.resources().image(image);
 	if (resource == nullptr) {
 		vkDestroySampler(device_.device(), sampler, nullptr);
 		throw runtimeError("offscreen color image resource is missing");
@@ -398,29 +540,72 @@ void OffscreenTarget::createSampler() {
 	resource->sampler = sampler;
 }
 
+void OffscreenTarget::createSamplers() {
+	// Every resolved image gets its own sampler. With MSAA these are the resolve
+	// images; otherwise they are the color attachments themselves.
+	if (isMultisampled()) {
+		for (ImageHandle &image : resolve_images_) {
+			createSamplerFor(image);
+		}
+	} else {
+		for (ImageHandle &image : color_images_) {
+			createSamplerFor(image);
+		}
+	}
+}
+
 void OffscreenTarget::transitionToShaderRead() {
-	// A fresh image cannot enter the render pass until it is in the layout the
-	// render pass expects for its initial layout.
+	// A fresh resolve image cannot enter the render pass until it is in the
+	// layout the render pass expects for its initial layout.
 	VkCommandBuffer command_buffer = device_.beginSingleTimeCommands();
-	imageBarrier(command_buffer,
-	             colorImage(),
-	             VK_IMAGE_LAYOUT_UNDEFINED,
-	             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-	             0,
-	             VK_ACCESS_SHADER_READ_BIT,
-	             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-	             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+	for (std::uint32_t index = 0; index < colorCount(); ++index) {
+		imageBarrier(command_buffer,
+		             colorImage(index),
+		             VK_IMAGE_LAYOUT_UNDEFINED,
+		             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		             0,
+		             VK_ACCESS_SHADER_READ_BIT,
+		             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+	}
 	device_.endSingleTimeCommands(command_buffer);
 }
 
-void OffscreenTarget::beginRenderPass(VkCommandBuffer commandBuffer, std::array<float, 4> clearColor) const {
+void OffscreenTarget::beginRenderPass(
+    VkCommandBuffer      commandBuffer,
+    std::array<float, 4> clearColor) const {
+	const std::vector<std::array<float, 4>> clear_colors(colorCount(), clearColor);
+	beginRenderPass(commandBuffer, clear_colors);
+}
+
+void OffscreenTarget::beginRenderPass(
+    VkCommandBuffer                          commandBuffer,
+    const std::vector<std::array<float, 4>> &clearColors) const {
 	if (commandBuffer == VK_NULL_HANDLE) {
 		return;
 	}
 
-	std::array<VkClearValue, 2> clear_values{};
-	std::copy(clearColor.begin(), clearColor.end(), clear_values[0].color.float32);
-	clear_values[1].depthStencil = { 1.0f, 0 };
+	// Clear values are indexed by attachment, including resolve attachments
+	// whose load op ignores the value. Keeping the array attachment-aligned
+	// ensures the depth clear lands on the depth attachment even with MSAA.
+	std::vector<VkClearValue> clear_values;
+	clear_values.reserve(colorCount() * (isMultisampled() ? 2 : 1) + (hasDepth() ? 1 : 0));
+
+	const std::array<float, 4> fallback = { 0.0f, 0.0f, 0.0f, 1.0f };
+	for (std::uint32_t index = 0; index < colorCount(); ++index) {
+		const std::array<float, 4> &source = index < clearColors.size() ? clearColors[index] : fallback;
+		VkClearValue                color{};
+		std::copy(source.begin(), source.end(), color.color.float32);
+		clear_values.push_back(color);
+		if (isMultisampled()) {
+			clear_values.push_back(VkClearValue{});
+		}
+	}
+	if (hasDepth()) {
+		VkClearValue depth{};
+		depth.depthStencil = { 1.0f, 0 };
+		clear_values.push_back(depth);
+	}
 
 	VkRenderPassBeginInfo info{};
 	info.sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -428,7 +613,7 @@ void OffscreenTarget::beginRenderPass(VkCommandBuffer commandBuffer, std::array<
 	info.framebuffer       = framebuffer();
 	info.renderArea.offset = { 0, 0 };
 	info.renderArea.extent = extent();
-	info.clearValueCount   = hasDepth() ? 2 : 1;
+	info.clearValueCount   = static_cast<std::uint32_t>(clear_values.size());
 	info.pClearValues      = clear_values.data();
 	vkCmdBeginRenderPass(commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE);
 }
@@ -455,8 +640,13 @@ void OffscreenTarget::setViewportAndScissor(VkCommandBuffer commandBuffer) const
 	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 }
 
-std::vector<std::uint8_t> OffscreenTarget::readPixels() const {
-	if (!isSupportedReadbackFormat(config_.colorFormat)) {
+std::vector<std::uint8_t> OffscreenTarget::readPixels(std::uint32_t attachment) const {
+	if (attachment >= colorCount()) {
+		throw outOfRange("offscreen color attachment index " + std::to_string(attachment) +
+		                 " is out of range (" + std::to_string(colorCount()) + " attachments)");
+	}
+	const VkFormat format = color_formats_[attachment];
+	if (!isSupportedReadbackFormat(format)) {
 		throw runtimeError("offscreen readback supports only 8-bit RGBA or BGRA color formats");
 	}
 
@@ -467,9 +657,10 @@ std::vector<std::uint8_t> OffscreenTarget::readPixels() const {
 	std::vector<std::uint8_t> initial(static_cast<std::size_t>(byte_count), 0);
 	Buffer                    readback(device_, initial.data(), byte_count, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
+	const VkImage image = colorImage(attachment);
 	VkCommandBuffer command_buffer = device_.beginSingleTimeCommands();
 	imageBarrier(command_buffer,
-	             colorImage(),
+	             image,
 	             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 	             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 	             VK_ACCESS_SHADER_READ_BIT,
@@ -488,14 +679,14 @@ std::vector<std::uint8_t> OffscreenTarget::readPixels() const {
 	region.imageOffset                     = { 0, 0, 0 };
 	region.imageExtent                     = { config_.width, config_.height, 1 };
 	vkCmdCopyImageToBuffer(command_buffer,
-	                       colorImage(),
+	                       image,
 	                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 	                       readback.buffer(),
 	                       1,
 	                       &region);
 
 	imageBarrier(command_buffer,
-	             colorImage(),
+	             image,
 	             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 	             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 	             VK_ACCESS_TRANSFER_READ_BIT,
@@ -509,7 +700,7 @@ std::vector<std::uint8_t> OffscreenTarget::readPixels() const {
 
 	// stb and most image tools expect RGBA byte order, while a BGRA target
 	// stores the same channels in the opposite order.
-	if (isBgraFormat(config_.colorFormat)) {
+	if (isBgraFormat(format)) {
 		for (VkDeviceSize index = 0; index < pixel_count; ++index) {
 			std::swap(pixels[index * 4 + 0], pixels[index * 4 + 2]);
 		}
@@ -517,8 +708,8 @@ std::vector<std::uint8_t> OffscreenTarget::readPixels() const {
 	return pixels;
 }
 
-void OffscreenTarget::savePng(const std::string &path) const {
-	const std::vector<std::uint8_t> pixels = readPixels();
+void OffscreenTarget::savePng(const std::string &path, std::uint32_t attachment) const {
+	const std::vector<std::uint8_t> pixels = readPixels(attachment);
 	if (stbi_write_png(path.c_str(),
 	                   static_cast<int>(config_.width),
 	                   static_cast<int>(config_.height),
@@ -530,7 +721,10 @@ void OffscreenTarget::savePng(const std::string &path) const {
 }
 
 void OffscreenTarget::releaseImage(ImageHandle &handle) noexcept {
-	const auto *resource = device_.resources().image(handle);
+	if (!handle.valid()) {
+		return;
+	}
+	const auto                  *resource = device_.resources().image(handle);
 	const DeviceMemoryAllocation allocation =
 	    resource == nullptr ? DeviceMemoryAllocation{} :
 	                          DeviceMemoryAllocation{ resource->memory, resource->offset, resource->size, 0, nullptr };
@@ -556,7 +750,14 @@ void OffscreenTarget::destroyResources() noexcept {
 		render_pass_ = {};
 	}
 
-	releaseImage(color_image_);
+	for (ImageHandle &image : color_images_) {
+		releaseImage(image);
+	}
+	color_images_.clear();
+	for (ImageHandle &image : resolve_images_) {
+		releaseImage(image);
+	}
+	resolve_images_.clear();
 	releaseImage(depth_image_);
 	depth_format_ = VK_FORMAT_UNDEFINED;
 }

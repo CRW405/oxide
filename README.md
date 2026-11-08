@@ -13,6 +13,8 @@ It handles the setup that most Vulkan programs need:
 - Graphics and presentation queues
 - Swapchain creation and recreation
 - Render passes and framebuffers with a depth attachment
+- MSAA render targets with automatic resolve
+- Multiple render targets (MRT) with per-attachment clears
 - Command buffers and frame synchronization
 - Vertex and index buffers
 - Texture loading and sampled image descriptor sets
@@ -42,6 +44,7 @@ directory:
 - `examples/multiple_pipelines` — Two graphics shader pairs plus a compute pass sharing one device and frame
 - `examples/offscreen_png` — Headless rendering into an offscreen image and writing it to a PNG
 - `examples/render_to_texture` — Sampling an offscreen render target in a second pass
+- `examples/msaa_mrt_resolve` — 4x MSAA with two render targets, resolved and composited on screen
 
 ## Use Case
 
@@ -109,7 +112,6 @@ arguments are still evaluated.
 
 ## TODO
 
-- MSAA, multiple render targets, and resolve
 - Shader reflection and specialization constants
 - OBJ reader
 - GLTF reader
@@ -145,5 +147,9 @@ format changes, `SwapchainPipeline` rebuilds its pipeline automatically.
 For offscreen work, create an `OffscreenTarget` and record its pass with
 `beginRenderPass()`/`endRenderPass()`. The color image finishes in a sampled
 layout, so a later pass can bind it through `TextureDescriptorSet`, or
-`readPixels()`/`savePng()` can copy it back. Constructing `VulkanDevice` without
-a window makes the same path fully headless.
+`readPixels()`/`savePng()` can copy it back. Set `OffscreenConfig::colorFormats`
+for multiple render targets and `sampleCount` for MSAA; each multisampled
+attachment is resolved automatically into the sampleable `colorImage(index)`.
+Constructing `VulkanDevice` without a window makes the same path fully headless.
+`SwapchainConfig::sampleCount` enables the same resolve path for window
+rendering.

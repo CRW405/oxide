@@ -54,6 +54,13 @@ class VulkanDevice {
 	[[nodiscard]] VkPipelineCache  pipelineCache() const noexcept { return pipeline_cache_; }
 	[[nodiscard]] QueueFamilies    findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) const;
 	[[nodiscard]] std::uint32_t    findMemoryType(std::uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
+
+	// Returns true when the format supports the requested sample count for the
+	// given image usage. VK_SAMPLE_COUNT_1_BIT is always supported.
+	[[nodiscard]] bool supportsSampleCount(
+	    VkFormat              format,
+	    VkSampleCountFlagBits sampleCount,
+	    VkImageUsageFlags     usage) const;
 	[[nodiscard]] DeviceMemoryAllocation allocateMemory(
 	    const VkMemoryRequirements &requirements, VkMemoryPropertyFlags properties);
 	void                           freeMemory(const DeviceMemoryAllocation &allocation) noexcept;

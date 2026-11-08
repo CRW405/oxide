@@ -86,6 +86,12 @@ struct SwapchainConfig {
 
 	// Zero chooses minImageCount + 1, clamped to the surface limits.
 	std::uint32_t imageCount = 0;
+
+	// MSAA sample count for window rendering. When greater than one,
+	// VulkanContext renders into a multisampled color and depth image and
+	// resolves the color image into the swapchain image. Unsupported values log
+	// a warning and fall back to VK_SAMPLE_COUNT_1_BIT.
+	VkSampleCountFlagBits sampleCount = VK_SAMPLE_COUNT_1_BIT;
 };
 
 // ============================================================================
@@ -112,6 +118,7 @@ class VulkanContext {
 	[[nodiscard]] VkExtent2D                      extent() const noexcept { return swapchain_extent_; }
 	[[nodiscard]] VkFormat                        swapchainFormat() const noexcept { return swapchain_format_; }
 	[[nodiscard]] VkFormat                        depthFormat() const noexcept { return depth_format_; }
+	[[nodiscard]] VkSampleCountFlagBits           sampleCount() const noexcept { return sample_count_; }
 	[[nodiscard]] VkPresentModeKHR                swapchainPresentMode() const noexcept {
 		return swapchain_present_mode_;
 	}
@@ -150,19 +157,21 @@ class VulkanContext {
 
 	void createSurface();
 	void createSwapchain();
+	void createColorResources();
 	void createDepthResources();
 	void createRenderPass();
 	void createFramebuffers();
 	void createCommandResources();
 
 	void destroySwapchain(bool destroy_render_pass = true);
+	void destroyColorResources() noexcept;
 	void destroyDepthResources() noexcept;
 	void destroyWindowResources() noexcept;
 
 	// Returns false when the window is closing before a usable size appears.
 	[[nodiscard]] bool waitForValidFramebufferSize() const;
 
-	[[nodiscard]] VkFormat                findDepthFormat() const;
+	[[nodiscard]] VkFormat                findDepthFormat(VkSampleCountFlagBits sampleCount) const;
 	[[nodiscard]] SwapchainSupportDetails querySwapchainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) const;
 
 	VulkanDevice    &device_;
@@ -179,10 +188,15 @@ class VulkanContext {
 	std::vector<VkImage>                              swapchain_images_;
 	std::vector<VkImageView>                          swapchain_image_views_;
 	std::vector<VkFramebuffer>                        swapchain_framebuffers_;
+	VkImage                                           color_image_        = VK_NULL_HANDLE;
+	VkDeviceMemory                                    color_image_memory_ = VK_NULL_HANDLE;
+	VkDeviceSize                                      color_image_memory_offset_ = 0;
+	VkImageView                                       color_image_view_   = VK_NULL_HANDLE;
 	VkImage                                           depth_image_        = VK_NULL_HANDLE;
 	VkDeviceMemory                                    depth_image_memory_ = VK_NULL_HANDLE;
 	VkDeviceSize                                      depth_image_memory_offset_ = 0;
 	VkImageView                                       depth_image_view_   = VK_NULL_HANDLE;
+	VkSampleCountFlagBits                             sample_count_       = VK_SAMPLE_COUNT_1_BIT;
 	VkRenderPass                                      render_pass_  = VK_NULL_HANDLE;
 	VkCommandPool                                     command_pool_ = VK_NULL_HANDLE;
 	std::array<VkCommandBuffer, MAX_FRAMES_IN_FLIGHT> command_buffers_{};
