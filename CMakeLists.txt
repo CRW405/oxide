@@ -9,7 +9,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Development defaults stay on. Disable these for lean release builds.
 option(OXIDE_ENABLE_VALIDATION "Enable Vulkan validation layers" ON)
 option(OXIDE_ENABLE_LOGGING "Enable Oxide diagnostic logging" ON)
 
@@ -36,8 +35,6 @@ function(oxide_enable_warnings target)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4)
     else()
-        # Config structs use default member initializers, so partial designated
-        # initializers are intentional and should not be treated as errors.
         target_compile_options(${target} PRIVATE
             -Wall -Wextra -Wpedantic -Werror
             -Wno-missing-field-initializers
@@ -45,9 +42,6 @@ function(oxide_enable_warnings target)
     endif()
 endfunction()
 
-# Oxide itself is a library that example programs (and other projects)
-# can link against. Every source file under src/ is part of it; applications
-# live in examples/.
 file(GLOB_RECURSE OXIDE_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 list(APPEND OXIDE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv-reflect/spirv_reflect.c"
