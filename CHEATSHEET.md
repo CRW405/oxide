@@ -15,6 +15,7 @@ look at the example for the feature you need:
 | Headless render and PNG readback | `offscreen_png` |
 | Sample an offscreen target on screen | `render_to_texture` |
 | MSAA, MRT, and automatic resolve | `msaa_mrt_resolve` |
+| Reflection and specialization constants | `sierpinski`, `hiss`, `multiple_pipelines` |
 
 ## Start an application
 
@@ -118,13 +119,17 @@ vulkan.endFrame(frame);
 ## Create a pipeline
 
 ```cpp
+oxide::ShaderLibrary shaders(OXIDE_SHADER_DIR);
+const oxide::GraphicsShaderFiles files = shaders.graphics("program");
+const oxide::ShaderReflection reflection =
+    oxide::ShaderReflection::fromGraphics(files);
+oxide::PipelineLayout layout(device, reflection);
+
 auto config = oxide::Pipeline::defaultPipelineConfigInfo();
 config.setVertexInput(input);
 config.setPipelineLayout(oxide::BorrowedPipelineLayout(layout.handle()));
 
-oxide::ShaderLibrary shaders(OXIDE_SHADER_DIR);
-oxide::SwapchainPipeline pipeline(
-    vulkan, device, shaders.graphics("program"), config);
+oxide::SwapchainPipeline pipeline(vulkan, device, files, config);
 
 pipeline.bind(command);
 pipeline.pipeline().draw(command, 3);
@@ -185,6 +190,112 @@ Set `config.setColorAttachmentCount(target.colorCount())` for MRT and
 attachment count, each `config.colorBlendAttachments[i]` can be adjusted
 independently.
 
+## Shader reflection and specialization
+
+`ShaderReflection` reads the SPIR-V that the pipeline will use and exposes the
+interface declared by the shaders. Reflection is the recommended way to build a
+`PipelineLayout`, because the descriptor sets and push-constant ranges cannot
+drift away from the shader source.
+
+```cpp
+oxide::ShaderLibrary shaders(OXIDE_SHADER_DIR);
+const oxide::GraphicsShaderFiles files = shaders.graphics("scene");
+
+// Vertex and fragment interfaces are merged, including shared bindings.
+const oxide::ShaderReflection reflection =
+    oxide::ShaderReflection::fromGraphics(files);
+oxide::PipelineLayout layout(device, reflection);
+
+// Use the reflected layouts when allocating descriptor sets.
+oxide::TextureDescriptorSet texture_set(
+    device, texture, layout.descriptorSetLayout(0));
+
+// Use the reflected push range when recording.
+const VkPushConstantRange push = reflection.pushConstantRanges().front();
+layout.pushConstant(command, push.stageFlags, push_data, push.offset);
+```
+
+Compute shaders use `ShaderReflection::fromCompute(shaders.compute("name"))`.
+`fromFile(path)` and `fromFiles({paths...})` cover custom combinations.
+
+Reflection exposes:
+
+```cpp
+reflection.descriptors();               // ReflectedDescriptor entries
+reflection.descriptorBindings(set);     // VkDescriptorSetLayoutBinding list
+reflection.descriptorSetCount();        // highest set + 1, gaps included
+reflection.pushConstants();             // ReflectedPushConstant entries
+reflection.pushConstantRanges();        // ready for PipelineLayout
+reflection.specializationConstants();   // ReflectedSpecializationConstant list
+
+reflection.findDescriptor("name");
+reflection.findSpecializationConstant("name"); // nullptr when absent
+```
+
+Overlapping push-constant ranges are merged and their stage flags are combined.
+Descriptor bindings used by several stages are merged the same way. Bindings are
+sorted by set and binding, so `descriptorBindings(set)` can be used directly.
+Empty descriptor set layouts are created for unused set indices; binding such a
+set is not needed, but the pipeline layout still declares the gap.
+
+`TextureDescriptorSet`, `UBODescriptorSet`, and `UniformBufferRing` accept a
+`VkDescriptorSetLayout` as an alternative to creating their own. Pass
+`layout.descriptorSetLayout(set)` so the wrapper allocates from the reflected
+layout:
+
+```cpp
+oxide::TextureDescriptorSet image_set(
+    device, target.colorView(0), target.sampler(0),
+    layout.descriptorSetLayout(0));
+
+oxide::UniformBufferRing uniforms(
+    device, oxide::MAX_FRAMES_IN_FLIGHT, initial_data,
+    layout.descriptorSetLayout(0));
+
+oxide::UBODescriptorSet camera_set(
+    device, camera_buffer, layout.descriptorSetLayout(0));
+```
+
+Declare the reflected `PipelineLayout` before the wrappers that use its layouts,
+and keep it alive until those wrappers are destroyed.
+
+### Specialization constants
+
+GLSL declares a specialization constant with `layout(constant_id = N)`:
+
+```glsl
+layout(constant_id = 0) const int FBM_OCTAVES = 5;
+```
+
+Reflection reports its name, ID, size, and stage. Override it on the pipeline
+config before creating the pipeline:
+
+```cpp
+oxide::PipelineConfigInfo config = oxide::Pipeline::defaultPipelineConfigInfo();
+if (const auto *octaves = reflection.findSpecializationConstant("FBM_OCTAVES")) {
+    config.fragmentSpecialization.set(*octaves, 6);
+}
+// Also available: config.vertexSpecialization.
+```
+
+`SpecializationConstants::set()` copies the value, so the source variable can go
+out of scope. Values must be trivially copyable. A stage with no overrides gets
+no `VkSpecializationInfo`, leaving the shader defaults active. Use the same
+object for a compute pipeline:
+
+```cpp
+oxide::SpecializationConstants constants;
+constants.set(0, 8);
+oxide::ComputePipeline pipeline(
+    device, shaders.compute("particles"),
+    oxide::BorrowedPipelineLayout(layout.handle()), constants);
+```
+
+The shader default stays active when a named constant is not found, so guard
+`findSpecializationConstant()` and only override values the shader declares.
+See `sierpinski` (`ITERATION_LIMIT`), `hiss` (`FBM_OCTAVES`), and
+`multiple_pipelines` (`OVERLAY_SCALE`, vertex stage).
+
 ## Vertex input and geometry
 
 ```cpp
@@ -237,8 +348,24 @@ data.read(out.data(), out.size()); // after the GPU work has completed
 
 ## Push constants
 
+Reflection usually supplies the range. Declare the matching block in GLSL and
+let the shader tell the CPU its size, offset, and stages:
+
 ```cpp
 struct PushData { float zoom; };
+
+const VkPushConstantRange range = reflection.pushConstantRanges().front();
+oxide::PipelineLayout layout(device, reflection);
+
+layout.pushConstant(
+    frame.commandBuffer(), range.stageFlags, PushData{ 1.0f }, range.offset);
+```
+
+`ShaderReflection` merges identical ranges used by several stages into one range
+with the union of their stage bits. If a program declares its layout by hand,
+`PushConstant` keeps a typed range and its stages together:
+
+```cpp
 auto push = oxide::pushConstant<PushData>(VK_SHADER_STAGE_FRAGMENT_BIT);
 oxide::PipelineLayout layout(device, { push.range() });
 config.setPipelineLayout(oxide::BorrowedPipelineLayout(layout.handle()));
@@ -246,21 +373,21 @@ config.setPipelineLayout(oxide::BorrowedPipelineLayout(layout.handle()));
 layout.pushConstant(frame.commandBuffer(), push, PushData{ 1.0f });
 ```
 
-The `PushConstant` value keeps its range and shader stages together. For arrays
-or custom blocks, use `pushConstantRange<T>()` with the raw overload
+For arrays or custom blocks, use `pushConstantRange<T>()` with the raw overload
 `layout.pushConstant(command, stages, data, offset)`. Combine descriptors and
 push constants with
 `PipelineLayout(device, { set.layout() }, { push.range() })`.
 
-See `sierpinski` for input-driven push constants.
+See `sierpinski` for input-driven push constants and `hiss` for a reflected
+range shared by the vertex and fragment stages.
 
 ## Per-frame uniforms
 
 ```cpp
 MyUniforms initial{};
 oxide::UniformBufferRing uniforms(
-    device, oxide::MAX_FRAMES_IN_FLIGHT, initial);
-oxide::PipelineLayout layout(device, { uniforms.layout() }, {});
+    device, oxide::MAX_FRAMES_IN_FLIGHT, initial,
+    layout.descriptorSetLayout(0)); // reflected layout
 
 uniforms.update(frame.frameIndex(), current_data);
 uniforms.bind(frame.commandBuffer(), layout.handle(), frame.frameIndex());
@@ -269,7 +396,9 @@ uniforms.bind(frame.commandBuffer(), layout.handle(), frame.frameIndex());
 The ring keeps one buffer and descriptor set per frame slot, so updating a slot
 cannot race work the GPU is still reading. `MAX_FRAMES_IN_FLIGHT` matches the
 context's frame count. `uniforms.descriptorSet(frameIndex)` exposes the raw set
-when binding manually. See `animated_uniform` and `hiss`.
+when binding manually. Pass `layout.descriptorSetLayout(0)` to allocate from a
+reflected layout, or omit it to let the ring create a binding-0 layout. See
+`animated_uniform`, `hiss`, and `render_to_texture`.
 
 ## Textures and descriptors
 
@@ -281,23 +410,33 @@ oxide::ImageTexture texture(device, OXIDE_ASSET_DIR "/smiley_0.png", {
     .addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
     .anisotropy  = true,
 });
-oxide::TextureDescriptorSet image_set(device, texture);
-oxide::PipelineLayout layout(device, { image_set.layout() }, {});
+oxide::TextureDescriptorSet image_set(
+    device, texture, layout.descriptorSetLayout(0)); // reflected layout
 
 image_set.bind(frame.commandBuffer(), layout.handle());
 ```
 
-The descriptor set uses a combined sampler at binding `0` by default. Its set
-index is its position in the `PipelineLayout` (set `0` for the example above).
-Pass a different binding or stage to the constructor when the shader interface
-differs. See `textured_quad`.
+The constructor without a `VkDescriptorSetLayout` creates its own layout with a
+combined sampler at binding `0`. Pass a different binding or stage in that form
+when the shader interface differs. A reflected layout supplies the layout
+object, but the binding and set index remain explicit: pass the reflected
+binding to the constructor (default 0) and the set index as `firstSet` when
+binding. For a sampler at binding 1 in set 2:
 
-For a static uniform buffer, `UBODescriptorSet` owns the layout, pool, and set:
+```cpp
+oxide::TextureDescriptorSet image_set(
+    device, texture, layout.descriptorSetLayout(2), 1);
+image_set.bind(frame.commandBuffer(), layout.handle(), 2);
+```
+
+See `textured_quad`, `render_to_texture`, and `msaa_mrt_resolve`.
+
+For a static uniform buffer, `UBODescriptorSet` also accepts a reflected layout:
 
 ```cpp
 oxide::UniformBuffer camera(device, camera_data);
-oxide::UBODescriptorSet camera_set(device, camera);
-oxide::PipelineLayout layout(device, { camera_set.layout() }, {});
+oxide::UBODescriptorSet camera_set(
+    device, camera, layout.descriptorSetLayout(0));
 camera_set.bind(command, layout.handle());
 ```
 
@@ -458,7 +597,8 @@ window.pollEvents();
 if (window.closeRequested()) break; // also consumes Escape/Q
 
 if (window.keyPressed(GLFW_KEY_SPACE)) { /* edge-triggered, consumes */ }
-const bool held  = !window.keyReleased(GLFW_KEY_W);
+if (window.keyReleased(GLFW_KEY_SPACE)) { /* edge-triggered, consumes */ }
+const bool held  = window.keyDown(GLFW_KEY_W);
 const bool mouse = window.mouseButtonDown(GLFW_MOUSE_BUTTON_LEFT);
 
 oxide::MousePosition cursor = window.cursorPosition();
@@ -472,23 +612,26 @@ oxide::WindowPosition position = window.position();
 window.setPosition(position);
 ```
 
-`width()`/`height()` are content coordinates suitable for normalizing cursor
-positions. `framebufferWidth()`/`framebufferHeight()` are drawable pixels and
-can differ on HiDPI displays. Wayland does not expose global window positions;
-check `hasGlobalPosition()` before relying on `position()`. For transparent
-windows, set `WindowConfig::transparent` and use a clear color with alpha 0.
+`keyPressed()` and `keyReleased()` report edge events and consume them on read;
+`keyDown()` reports whether the key is currently held. `width()`/`height()` are
+content coordinates suitable for normalizing cursor positions.
+`framebufferWidth()`/`framebufferHeight()` are drawable pixels and can differ on
+HiDPI displays. Wayland does not expose global window positions; check
+`hasGlobalPosition()` before relying on `position()`. For transparent windows,
+set `WindowConfig::transparent` and use a clear color with alpha 0.
 
 Frame-rate reporting:
 
 ```cpp
-tools::FPSCounter fps(window.time());
+oxide::FPSCounter fps(window.time());
 // each frame
 fps.update(window.time());
 // at exit
 fps.finish();
 ```
 
-See `sierpinski`.
+FPS output updates one terminal line when stdout is a TTY and `NO_COLOR` is
+unset; otherwise it prints one line per report. See `sierpinski`.
 
 ## Swapchain and resize
 
@@ -524,12 +667,21 @@ vulkan.addSwapchainRecreatedCallback(
 
 `SwapchainRecreationInfo` carries `renderPass`, `format`, `extent`,
 `renderPassChanged`, and `generation`. `setSwapchainRecreatedCallback()`
-replaces the callback; `addSwapchainRecreatedCallback()` appends one.
-`swapchainGeneration()` changes after every successful recreation, so storing
-it alongside long-lived objects helps detect stale pipelines. The context calls
-`recoverSurface()` automatically after surface loss; it rebuilds the surface and
-swapchain but does not invoke recreation callbacks, so rebuild render-pass
-dependent resources yourself if you manage them directly.
+replaces the callback. `addSwapchainRecreatedCallback()` appends one and returns
+an id; pass that id to `removeSwapchainRecreatedCallback()` to unregister it.
+`SwapchainPipeline` does this automatically when it is destroyed.
+`swapchainGeneration()` changes after every successful recreation, so storing it
+alongside long-lived objects helps detect stale pipelines. The context also
+invokes the callbacks after `recoverSurface()` rebuilds a lost surface, with
+`renderPassChanged` set to true, so render-pass-dependent resources are rebuilt
+after surface loss as well.
+
+```cpp
+const auto callback_id = vulkan.addSwapchainRecreatedCallback(
+    [](const oxide::SwapchainRecreationInfo &info) { /* rebuild */ });
+// Later, before the context and captured objects are destroyed:
+vulkan.removeSwapchainRecreatedCallback(callback_id);
+```
 
 ## Diagnostics
 

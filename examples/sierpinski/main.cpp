@@ -20,19 +20,29 @@ int main() {
 
 	// The fragment shader draws the entire fractal, so no vertex buffer is
 	// required. The vertex shader generates one oversized screen triangle.
+	oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
+	const oxide::GraphicsShaderFiles fractal_shaders =
+	    shader_library.graphics("sierpinski_triangle");
+	const oxide::ShaderReflection fractal_reflection =
+	    oxide::ShaderReflection::fromGraphics(fractal_shaders);
+
+	// Reflection finds the push-constant block and the fragment shader's
+	// specialization constant, so neither has to be duplicated by hand.
+	oxide::PipelineLayout pipeline_layout(device, fractal_reflection);
+	const VkPushConstantRange fractal_push_range =
+	    fractal_reflection.pushConstantRanges().front();
+
 	oxide::PipelineConfigInfo pipeline_config =
 	    oxide::Pipeline::defaultPipelineConfigInfo();
-
-	const oxide::PushConstant fractal_push_constant =
-	    oxide::pushConstant<FractalSettings>(VK_SHADER_STAGE_FRAGMENT_BIT);
-	oxide::PipelineLayout pipeline_layout(device, { fractal_push_constant.range() });
 	pipeline_config.setPipelineLayout(
 	    oxide::BorrowedPipelineLayout(pipeline_layout.handle()));
+	if (const auto *iteration_limit =
+	        fractal_reflection.findSpecializationConstant("ITERATION_LIMIT")) {
+		pipeline_config.fragmentSpecialization.set(*iteration_limit, 20);
+	}
 
-	oxide::ShaderLibrary     shader_library(OXIDE_SHADER_DIR);
 	oxide::SwapchainPipeline sierpinski_pipeline(
-	    vulkan_context, device, shader_library.graphics("sierpinski_triangle"),
-	    pipeline_config);
+	    vulkan_context, device, fractal_shaders, pipeline_config);
 
 	// Declared after the GPU resources so it is destroyed first, including on
 	// exception unwinding from the render loop.
@@ -42,7 +52,7 @@ int main() {
 	FractalSettings fractal_settings{ 0, 1.0f, 1.0f };
 
 	// Debug tools.
-	tools::FPSCounter fps_counter(window.time());
+	oxide::FPSCounter fps_counter(window.time());
 
 	// Main loop.
 	while (!window.shouldClose()) {
@@ -82,7 +92,8 @@ int main() {
 		sierpinski_pipeline.bind(frame_scope.commandBuffer());
 		vulkan_context.setViewportAndScissor(frame_scope.commandBuffer());
 		pipeline_layout.pushConstant(
-		    frame_scope.commandBuffer(), fractal_push_constant, fractal_settings);
+		    frame_scope.commandBuffer(), fractal_push_range.stageFlags,
+		    fractal_settings, fractal_push_range.offset);
 
 		// Draw the full-screen triangle; the fragment shader does the rest.
 		sierpinski_pipeline.pipeline().draw(frame_scope.commandBuffer(), 3);

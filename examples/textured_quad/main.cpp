@@ -20,11 +20,20 @@ int main() {
 		oxide::VulkanDevice  &device = app.device();
 		oxide::VulkanContext &vulkan_context = app.context();
 
-		// Load the image once and wrap it in a descriptor set that the shader
-		// samples at set 0, binding 0.
+		// Reflect the shader first so the reflected pipeline layout owns the
+		// descriptor set layout that the texture set allocates from.
+		oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
+		const oxide::GraphicsShaderFiles quad_shaders =
+		    shader_library.graphics("textured_quad");
+		const oxide::ShaderReflection quad_reflection =
+		    oxide::ShaderReflection::fromGraphics(quad_shaders);
+		oxide::PipelineLayout pipeline_layout(device, quad_reflection);
+
+		// Load the image once and allocate a set from the reflected layout.
 		oxide::ImageTexture quad_texture(
 		    device, std::string(OXIDE_ASSET_DIR) + "/smiley_0.png");
-		oxide::TextureDescriptorSet texture_descriptor_set(device, quad_texture);
+		oxide::TextureDescriptorSet texture_descriptor_set(
+		    device, quad_texture, pipeline_layout.descriptorSetLayout(0));
 
 		oxide::VertexInputDescription vertex_input_description;
 		vertex_input_description.addBinding(0, sizeof(TexturedVertex))
@@ -34,16 +43,11 @@ int main() {
 		oxide::PipelineConfigInfo pipeline_config =
 		    oxide::Pipeline::defaultPipelineConfigInfo();
 		pipeline_config.setVertexInput(vertex_input_description);
-
-		// The pipeline layout exposes the texture descriptor set to the shader.
-		oxide::PipelineLayout pipeline_layout(
-		    device, { texture_descriptor_set.layout() }, {});
 		pipeline_config.setPipelineLayout(
 		    oxide::BorrowedPipelineLayout(pipeline_layout.handle()));
 
-		oxide::ShaderLibrary     shader_library(OXIDE_SHADER_DIR);
 		oxide::SwapchainPipeline pipeline(
-		    vulkan_context, device, shader_library.graphics("textured_quad"), pipeline_config);
+		    vulkan_context, device, quad_shaders, pipeline_config);
 
 		// UVs run from (0,0) at the top-left to (1,1) at the bottom-right.
 		const std::vector<TexturedVertex> quad_vertices = {

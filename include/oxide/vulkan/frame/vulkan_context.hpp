@@ -37,6 +37,7 @@ struct SwapchainRecreationInfo {
 };
 
 using SwapchainRecreatedCallback = std::function<void(const SwapchainRecreationInfo &)>;
+using SwapchainCallbackId        = std::uint64_t;
 
 class VulkanContext;
 
@@ -131,7 +132,12 @@ class VulkanContext {
 	// Called after the swapchain and its dependent resources have been rebuilt.
 	// Recreate graphics pipelines here when info.renderPassChanged is true.
 	void setSwapchainRecreatedCallback(SwapchainRecreatedCallback callback);
-	void addSwapchainRecreatedCallback(SwapchainRecreatedCallback callback);
+
+	// Appends a callback and returns an id that can be passed to
+	// removeSwapchainRecreatedCallback(). Removing a callback during
+	// notification is safe because the callback list is copied first.
+	[[nodiscard]] SwapchainCallbackId addSwapchainRecreatedCallback(SwapchainRecreatedCallback callback);
+	bool                             removeSwapchainRecreatedCallback(SwapchainCallbackId id) noexcept;
 	[[nodiscard]] const std::vector<VkImage>     &swapchainImages() const noexcept { return swapchain_images_; }
 	[[nodiscard]] const std::vector<VkImageView> &swapchainImageViews() const noexcept {
 		return swapchain_image_views_;
@@ -167,6 +173,7 @@ class VulkanContext {
 	void destroyColorResources() noexcept;
 	void destroyDepthResources() noexcept;
 	void destroyWindowResources() noexcept;
+	void notifySwapchainRecreated(bool renderPassChanged);
 
 	// Returns false when the window is closing before a usable size appears.
 	[[nodiscard]] bool waitForValidFramebufferSize() const;
@@ -188,14 +195,19 @@ class VulkanContext {
 	std::vector<VkImage>                              swapchain_images_;
 	std::vector<VkImageView>                          swapchain_image_views_;
 	std::vector<VkFramebuffer>                        swapchain_framebuffers_;
-	VkImage                                           color_image_        = VK_NULL_HANDLE;
-	VkDeviceMemory                                    color_image_memory_ = VK_NULL_HANDLE;
-	VkDeviceSize                                      color_image_memory_offset_ = 0;
-	VkImageView                                       color_image_view_   = VK_NULL_HANDLE;
-	VkImage                                           depth_image_        = VK_NULL_HANDLE;
-	VkDeviceMemory                                    depth_image_memory_ = VK_NULL_HANDLE;
-	VkDeviceSize                                      depth_image_memory_offset_ = 0;
-	VkImageView                                       depth_image_view_   = VK_NULL_HANDLE;
+	// One attachment set per swapchain image. Reusing a single depth or MSAA
+	// color image across frames in flight would let two submissions write the
+	// same attachment at once, so the framebuffer for each image owns its own.
+	struct AttachmentImage {
+		VkImage        image        = VK_NULL_HANDLE;
+		VkDeviceMemory memory       = VK_NULL_HANDLE;
+		VkDeviceSize   memoryOffset = 0;
+		VkDeviceSize   memorySize   = 0;
+		VkImageView    view         = VK_NULL_HANDLE;
+	};
+
+	std::vector<AttachmentImage> color_images_;
+	std::vector<AttachmentImage> depth_images_;
 	VkSampleCountFlagBits                             sample_count_       = VK_SAMPLE_COUNT_1_BIT;
 	VkRenderPass                                      render_pass_  = VK_NULL_HANDLE;
 	VkCommandPool                                     command_pool_ = VK_NULL_HANDLE;
@@ -210,7 +222,14 @@ class VulkanContext {
 	bool                       framebuffer_resized_  = false;
 	bool                       transparent_          = false;
 	SwapchainRecreatedCallback swapchain_recreated_callback_;
-	std::vector<SwapchainRecreatedCallback> additional_swapchain_callbacks_;
+
+	struct SwapchainCallbackEntry {
+		SwapchainCallbackId       id = 0;
+		SwapchainRecreatedCallback callback;
+	};
+
+	std::vector<SwapchainCallbackEntry> additional_swapchain_callbacks_;
+	SwapchainCallbackId                 next_swapchain_callback_id_ = 1;
 };
 
 }

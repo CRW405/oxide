@@ -102,6 +102,7 @@ class SwapchainPipeline {
 	std::unique_ptr<Pipeline> pipeline_;
 	struct CallbackState;
 	std::shared_ptr<CallbackState> callback_state_;
+	std::uint64_t                  callback_id_ = 0;
 };
 
 // ============================================================================
@@ -116,11 +117,13 @@ class ComputePipeline {
 	ComputePipeline(
 	    VulkanDevice      &device,
 	    const std::string &compFilepath,
-	    BorrowedPipelineLayout layout = {});
+	    BorrowedPipelineLayout layout = {},
+	    const SpecializationConstants &specialization = {});
 	ComputePipeline(
 	    VulkanDevice             &device,
 	    const ComputeShaderFile  &shader,
-	    BorrowedPipelineLayout    layout = {});
+	    BorrowedPipelineLayout    layout = {},
+	    const SpecializationConstants &specialization = {});
 
 	~ComputePipeline();
 

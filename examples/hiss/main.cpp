@@ -34,6 +34,16 @@ int main() {
 	oxide::VulkanDevice  &device = app.device();
 	oxide::VulkanContext &vulkan_context = app.context();
 
+	// Reflection runs before the GPU resources because it supplies the
+	// descriptor set layout and push-constant range they must match.
+	oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
+	const oxide::GraphicsShaderFiles hiss_shaders = shader_library.graphics("hiss");
+	const oxide::ShaderReflection hiss_reflection =
+	    oxide::ShaderReflection::fromGraphics(hiss_shaders);
+	oxide::PipelineLayout pipeline_layout(device, hiss_reflection);
+	const VkPushConstantRange hiss_push_range =
+	    hiss_reflection.pushConstantRanges().front();
+
 	// Per-frame camera uniform buffer. The ring keeps one copy per frame in
 	// flight so updates cannot race work the GPU is still using.
 	CameraUniforms camera_uniforms;
@@ -41,7 +51,8 @@ int main() {
 	glm_mat4_identity(camera_uniforms.view);
 	glm_mat4_identity(camera_uniforms.projection);
 	oxide::UniformBufferRing camera_uniform_buffer(
-	    device, oxide::MAX_FRAMES_IN_FLIGHT, camera_uniforms);
+	    device, oxide::MAX_FRAMES_IN_FLIGHT, camera_uniforms,
+	    pipeline_layout.descriptorSetLayout(0));
 
 	// Describe the CubeVertex layout to the pipeline.
 	oxide::VertexInputDescription vertex_input_description;
@@ -71,9 +82,8 @@ int main() {
 	};
 	oxide::Mesh cube_mesh(device, cube_vertices, cube_indices);
 
-	// The fragment shader receives the animation time as a push constant.
-	oxide::PushConstant time_push_constant =
-	    oxide::pushConstant<HissPushConstants>(VK_SHADER_STAGE_FRAGMENT_BIT);
+	// The fragment shader receives the animation time as a push constant. The
+	// reflected range already carries the correct stage flags and size.
 
 	// Pipeline setup: depth testing and back-face culling for the rotating cube.
 	oxide::PipelineConfigInfo pipeline_config =
@@ -83,15 +93,16 @@ int main() {
 	pipeline_config.rasterizationInfo.cullMode        = VK_CULL_MODE_BACK_BIT;
 	pipeline_config.rasterizationInfo.frontFace       = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
-	oxide::PipelineLayout pipeline_layout(
-	    device, { camera_uniform_buffer.layout() }, { time_push_constant.range() });
 	pipeline_config.setVertexInput(vertex_input_description);
 	pipeline_config.setPipelineLayout(
 	    oxide::BorrowedPipelineLayout(pipeline_layout.handle()));
+	if (const auto *octaves =
+	        hiss_reflection.findSpecializationConstant("FBM_OCTAVES")) {
+		pipeline_config.fragmentSpecialization.set(*octaves, 6);
+	}
 
-	oxide::ShaderLibrary     shader_library(OXIDE_SHADER_DIR);
 	oxide::SwapchainPipeline hiss_pipeline(
-	    vulkan_context, device, shader_library.graphics("hiss"), pipeline_config);
+	    vulkan_context, device, hiss_shaders, pipeline_config);
 	oxide::DeviceIdleGuard device_idle_guard(device);
 
 	while (!window.shouldClose()) {
@@ -107,9 +118,9 @@ int main() {
 		}
 
 		// Animate the cube's rotation. Elapsed time is scaled up unless Shift
-		// was just released, which makes the liquid motion easier to inspect.
+		// is held, which makes the liquid motion easier to inspect.
 		double elapsed_seconds = window.time();
-		if (!window.keyReleased(GLFW_KEY_LEFT_SHIFT)) {
+		if (!window.keyDown(GLFW_KEY_LEFT_SHIFT)) {
 			elapsed_seconds = elapsed_seconds * 5.0;
 		}
 
@@ -138,7 +149,8 @@ int main() {
 			static_cast<float>(elapsed_seconds / 5)
 		};
 		pipeline_layout.pushConstant(
-		    frame_scope.commandBuffer(), time_push_constant, push_constants_data);
+		    frame_scope.commandBuffer(), hiss_push_range.stageFlags,
+		    push_constants_data, hiss_push_range.offset);
 
 		cube_mesh.bind(frame_scope.commandBuffer());
 		camera_uniform_buffer.bind(

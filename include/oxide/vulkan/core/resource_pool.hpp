@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -22,6 +23,11 @@ class ResourcePool {
 				slot.value = std::move(value);
 				return ResourceHandle(makeValue(index, slot.generation));
 			}
+		}
+		// Handles store the slot index in the low 16 bits. Refuse to allocate a
+		// slot whose index would silently alias an earlier handle.
+		if (slots_.size() > index_mask) {
+			throw std::length_error("resource pool exhausted: maximum of 65536 live slots");
 		}
 		slots_.push_back(Slot{std::move(value), 1});
 		return ResourceHandle(makeValue(static_cast<std::uint32_t>(slots_.size() - 1), 1));

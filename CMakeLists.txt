@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(oxide VERSION 0.1.0 LANGUAGES CXX)
+project(oxide VERSION 0.1.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -41,7 +41,6 @@ function(oxide_enable_warnings target)
         target_compile_options(${target} PRIVATE
             -Wall -Wextra -Wpedantic -Werror
             -Wno-missing-field-initializers
-            -DGLFW_USE_WAYLAND=ON
         )
     endif()
 endfunction()
@@ -50,6 +49,9 @@ endfunction()
 # can link against. Every source file under src/ is part of it; applications
 # live in examples/.
 file(GLOB_RECURSE OXIDE_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+list(APPEND OXIDE_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv-reflect/spirv_reflect.c"
+)
 
 add_library(oxide STATIC ${OXIDE_SOURCES})
 add_library(oxide::oxide ALIAS oxide)
@@ -61,6 +63,7 @@ target_include_directories(oxide PUBLIC
 target_include_directories(oxide SYSTEM PRIVATE
     ${STB_INCLUDE_DIR}
     ${STB_WRITE_INCLUDE_DIR}
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv-reflect"
 )
 target_link_libraries(oxide PUBLIC Vulkan::Vulkan glfw)
 target_compile_features(oxide PUBLIC cxx_std_20)

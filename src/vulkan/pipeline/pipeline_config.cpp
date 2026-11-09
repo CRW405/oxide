@@ -33,6 +33,8 @@ PipelineConfigInfo::PipelineConfigInfo(const PipelineConfigInfo &other)
       depthStencilInfo(other.depthStencilInfo),
       dynamicStates(other.dynamicStates),
       dynamicStateInfo(other.dynamicStateInfo),
+      vertexSpecialization(other.vertexSpecialization),
+      fragmentSpecialization(other.fragmentSpecialization),
       pipelineLayout(other.pipelineLayout),
       renderPass(other.renderPass),
       subpass(other.subpass),
@@ -43,22 +45,24 @@ PipelineConfigInfo::PipelineConfigInfo(const PipelineConfigInfo &other)
 
 PipelineConfigInfo &PipelineConfigInfo::operator=(const PipelineConfigInfo &other) {
 	if (this != &other) {
-		vertexInputInfo      = other.vertexInputInfo;
-		viewportInfo         = other.viewportInfo;
-		inputAssemblyInfo    = other.inputAssemblyInfo;
-		rasterizationInfo    = other.rasterizationInfo;
-		multisampleInfo      = other.multisampleInfo;
-		colorBlendAttachment = other.colorBlendAttachment;
-		colorBlendAttachments = other.colorBlendAttachments;
-		colorBlendInfo       = other.colorBlendInfo;
-		depthStencilInfo     = other.depthStencilInfo;
-		dynamicStates        = other.dynamicStates;
-		dynamicStateInfo     = other.dynamicStateInfo;
-		pipelineLayout       = other.pipelineLayout;
-		renderPass           = other.renderPass;
-		subpass              = other.subpass;
-		vertexBindings_      = other.vertexBindings_;
-		vertexAttributes_    = other.vertexAttributes_;
+		vertexInputInfo        = other.vertexInputInfo;
+		viewportInfo           = other.viewportInfo;
+		inputAssemblyInfo      = other.inputAssemblyInfo;
+		rasterizationInfo      = other.rasterizationInfo;
+		multisampleInfo        = other.multisampleInfo;
+		colorBlendAttachment   = other.colorBlendAttachment;
+		colorBlendAttachments  = other.colorBlendAttachments;
+		colorBlendInfo         = other.colorBlendInfo;
+		depthStencilInfo       = other.depthStencilInfo;
+		dynamicStates          = other.dynamicStates;
+		dynamicStateInfo       = other.dynamicStateInfo;
+		vertexSpecialization   = other.vertexSpecialization;
+		fragmentSpecialization = other.fragmentSpecialization;
+		pipelineLayout         = other.pipelineLayout;
+		renderPass             = other.renderPass;
+		subpass                = other.subpass;
+		vertexBindings_        = other.vertexBindings_;
+		vertexAttributes_      = other.vertexAttributes_;
 		refreshInternalPointers();
 	}
 	return *this;
@@ -76,6 +80,8 @@ PipelineConfigInfo::PipelineConfigInfo(PipelineConfigInfo &&other) noexcept
       depthStencilInfo(other.depthStencilInfo),
       dynamicStates(std::move(other.dynamicStates)),
       dynamicStateInfo(other.dynamicStateInfo),
+      vertexSpecialization(std::move(other.vertexSpecialization)),
+      fragmentSpecialization(std::move(other.fragmentSpecialization)),
       pipelineLayout(other.pipelineLayout),
       renderPass(other.renderPass),
       subpass(other.subpass),
@@ -86,22 +92,24 @@ PipelineConfigInfo::PipelineConfigInfo(PipelineConfigInfo &&other) noexcept
 
 PipelineConfigInfo &PipelineConfigInfo::operator=(PipelineConfigInfo &&other) noexcept {
 	if (this != &other) {
-		vertexInputInfo      = other.vertexInputInfo;
-		viewportInfo         = other.viewportInfo;
-		inputAssemblyInfo    = other.inputAssemblyInfo;
-		rasterizationInfo    = other.rasterizationInfo;
-		multisampleInfo      = other.multisampleInfo;
-		colorBlendAttachment = other.colorBlendAttachment;
-		colorBlendAttachments = std::move(other.colorBlendAttachments);
-		colorBlendInfo       = other.colorBlendInfo;
-		depthStencilInfo     = other.depthStencilInfo;
-		dynamicStates        = std::move(other.dynamicStates);
-		dynamicStateInfo     = other.dynamicStateInfo;
-		pipelineLayout       = other.pipelineLayout;
-		renderPass           = other.renderPass;
-		subpass              = other.subpass;
-		vertexBindings_      = std::move(other.vertexBindings_);
-		vertexAttributes_    = std::move(other.vertexAttributes_);
+		vertexInputInfo        = other.vertexInputInfo;
+		viewportInfo           = other.viewportInfo;
+		inputAssemblyInfo      = other.inputAssemblyInfo;
+		rasterizationInfo      = other.rasterizationInfo;
+		multisampleInfo        = other.multisampleInfo;
+		colorBlendAttachment   = other.colorBlendAttachment;
+		colorBlendAttachments  = std::move(other.colorBlendAttachments);
+		colorBlendInfo         = other.colorBlendInfo;
+		depthStencilInfo       = other.depthStencilInfo;
+		dynamicStates          = std::move(other.dynamicStates);
+		dynamicStateInfo       = other.dynamicStateInfo;
+		vertexSpecialization   = std::move(other.vertexSpecialization);
+		fragmentSpecialization = std::move(other.fragmentSpecialization);
+		pipelineLayout         = other.pipelineLayout;
+		renderPass             = other.renderPass;
+		subpass                = other.subpass;
+		vertexBindings_        = std::move(other.vertexBindings_);
+		vertexAttributes_      = std::move(other.vertexAttributes_);
 		refreshInternalPointers();
 	}
 	return *this;

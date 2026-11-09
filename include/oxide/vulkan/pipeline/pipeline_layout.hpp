@@ -5,10 +5,13 @@
 #include <cstdint>
 #include <initializer_list>
 #include <type_traits>
+#include <vector>
 
 #include <oxide/vulkan/device/vulkan_device.hpp>
 
 namespace oxide {
+
+class ShaderReflection;
 
 // ============================================================================
 // Push-constant range defaults
@@ -92,6 +95,12 @@ class PipelineLayout {
 	PipelineLayout(
 	    VulkanDevice &device,
 	    std::initializer_list<VkPushConstantRange> pushConstantRanges);
+
+	// Build the descriptor set layouts and push-constant ranges from SPIR-V.
+	// Descriptor sets owned by this PipelineLayout stay valid until it is
+	// destroyed, so descriptor wrappers can allocate from
+	// descriptorSetLayout(set).
+	PipelineLayout(VulkanDevice &device, const ShaderReflection &reflection);
 	~PipelineLayout();
 
 	PipelineLayout(const PipelineLayout &)            = delete;
@@ -103,6 +112,21 @@ class PipelineLayout {
 	// destroyed. Pass it to a pipeline as BorrowedPipelineLayout when sharing.
 	[[nodiscard]] VkPipelineLayout handle() const noexcept { return layout_; }
 	[[nodiscard]] PipelineLayoutHandle resourceHandle() const noexcept { return resource_handle_; }
+
+	// Descriptor set layouts used by this pipeline layout, in set order. The
+	// vector may contain VK_NULL_HANDLE for unused set indices.
+	[[nodiscard]] std::uint32_t descriptorSetCount() const noexcept {
+		return static_cast<std::uint32_t>(descriptor_set_layouts_.size());
+	}
+	[[nodiscard]] VkDescriptorSetLayout descriptorSetLayout(std::uint32_t set) const noexcept {
+		return set < descriptor_set_layouts_.size() ? descriptor_set_layouts_[set] : VK_NULL_HANDLE;
+	}
+	[[nodiscard]] const std::vector<VkDescriptorSetLayout> &descriptorSetLayouts() const noexcept {
+		return descriptor_set_layouts_;
+	}
+	[[nodiscard]] const std::vector<VkPushConstantRange> &pushConstantRanges() const noexcept {
+		return push_constant_ranges_;
+	}
 
 	// Bind one descriptor set for the common no-dynamic-offset case.
 	void bindDescriptorSet(
@@ -139,9 +163,12 @@ class PipelineLayout {
 	}
 
   private:
-	VulkanDevice    &device_;
-	VkPipelineLayout layout_ = VK_NULL_HANDLE;
-	PipelineLayoutHandle resource_handle_{};
+	VulkanDevice                          &device_;
+	VkPipelineLayout                       layout_ = VK_NULL_HANDLE;
+	PipelineLayoutHandle                   resource_handle_{};
+	std::vector<VkDescriptorSetLayout>     descriptor_set_layouts_;
+	std::vector<DescriptorLayoutHandle>    owned_descriptor_layouts_;
+	std::vector<VkPushConstantRange>       push_constant_ranges_;
 };
 
 }

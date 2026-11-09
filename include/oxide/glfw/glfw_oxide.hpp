@@ -72,8 +72,12 @@ class Window {
 	[[nodiscard]] bool          transparent() const noexcept;
 	void                        pollEvents() const noexcept;
 	[[nodiscard]] double        time() const noexcept;
+	// Edge-triggered: true once per press (or release) since the last call to
+	// the matching function, and the event is consumed by that call.
 	[[nodiscard]] bool          keyPressed(int key) noexcept;
-	[[nodiscard]] bool          keyReleased(int key) const noexcept;
+	[[nodiscard]] bool          keyReleased(int key) noexcept;
+	// Level-triggered: true while the key is currently held down.
+	[[nodiscard]] bool          keyDown(int key) const noexcept;
 	[[nodiscard]] bool          mouseButtonDown(int button) const noexcept;
 
 	// Cursor position relative to the content area, in screen coordinates.
@@ -89,6 +93,7 @@ class Window {
 
 	GLFWwindow             *window_ = nullptr;
 	std::unordered_set<int> pressed_keys_;
+	std::unordered_set<int> released_keys_;
 	MousePosition           scroll_delta_;
 	mutable WindowPosition  position_;
 

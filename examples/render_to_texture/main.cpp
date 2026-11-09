@@ -25,31 +25,43 @@ int main() {
 
 		// First pass: render into the offscreen target. The pipeline is not a
 		// SwapchainPipeline because the target's render pass never changes.
-		const oxide::PushConstant scene_push =
-		    oxide::pushConstant<ScenePush>(VK_SHADER_STAGE_FRAGMENT_BIT);
-		oxide::PipelineLayout scene_layout(device, { scene_push.range() });
+		// Reflection supplies both the push-constant range and the fragment
+		// shader's specialization constant.
+		const oxide::GraphicsShaderFiles scene_shaders =
+		    shader_library.graphics("offscreen_scene");
+		const oxide::ShaderReflection scene_reflection =
+		    oxide::ShaderReflection::fromGraphics(scene_shaders);
+		oxide::PipelineLayout scene_layout(device, scene_reflection);
+		const VkPushConstantRange scene_push_range =
+		    scene_reflection.pushConstantRanges().front();
 
 		oxide::PipelineConfigInfo scene_config =
 		    oxide::Pipeline::defaultPipelineConfigInfo();
 		scene_config.setPipelineLayout(
 		    oxide::BorrowedPipelineLayout(scene_layout.handle()));
 		scene_config.setRenderPass(target.renderPass());
-		oxide::Pipeline scene_pipeline(
-		    device, shader_library.graphics("offscreen_scene"), scene_config);
+		if (const auto *bands =
+		        scene_reflection.findSpecializationConstant("BAND_FREQUENCY")) {
+			scene_config.fragmentSpecialization.set(*bands, 12.0f);
+		}
+		oxide::Pipeline scene_pipeline(device, scene_shaders, scene_config);
 
 		// Second pass: sample the offscreen color image on the swapchain.
+		const oxide::GraphicsShaderFiles sample_shaders =
+		    shader_library.graphics("sample_pass");
+		const oxide::ShaderReflection sample_reflection =
+		    oxide::ShaderReflection::fromGraphics(sample_shaders);
+		oxide::PipelineLayout sample_layout(device, sample_reflection);
 		oxide::TextureDescriptorSet scene_descriptor(
-		    device, target.colorView(), target.sampler());
-		oxide::PipelineLayout sample_layout(
-		    device, { scene_descriptor.layout() }, {});
+		    device, target.colorView(), target.sampler(),
+		    sample_layout.descriptorSetLayout(0));
 
 		oxide::PipelineConfigInfo sample_config =
 		    oxide::Pipeline::defaultPipelineConfigInfo();
 		sample_config.setPipelineLayout(
 		    oxide::BorrowedPipelineLayout(sample_layout.handle()));
 		oxide::SwapchainPipeline sample_pipeline(
-		    vulkan_context, device, shader_library.graphics("sample_pass"),
-		    sample_config);
+		    vulkan_context, device, sample_shaders, sample_config);
 
 		oxide::DeviceIdleGuard device_idle_guard(device);
 
@@ -68,8 +80,9 @@ int main() {
 			target.setViewportAndScissor(frame.commandBuffer);
 			scene_pipeline.bind(frame.commandBuffer);
 			scene_layout.pushConstant(
-			    frame.commandBuffer, scene_push,
-			    ScenePush{ static_cast<float>(window.time() - start_time) });
+			    frame.commandBuffer, scene_push_range.stageFlags,
+			    ScenePush{ static_cast<float>(window.time() - start_time) },
+			    scene_push_range.offset);
 			scene_pipeline.draw(frame.commandBuffer, 3);
 			target.endRenderPass(frame.commandBuffer);
 

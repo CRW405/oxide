@@ -10,6 +10,9 @@
 #include <oxide/vulkan/pipeline/pipeline_layout.hpp>
 #include <oxide/vulkan/pipeline/render_pipeline.hpp>
 #include <oxide/vulkan/pipeline/pipeline_config.hpp>
+#include <oxide/vulkan/pipeline/shader_library.hpp>
+#include <oxide/vulkan/pipeline/shader_reflection.hpp>
+#include <oxide/vulkan/pipeline/specialization_constants.hpp>
 #include <oxide/vulkan/core/resource_registry.hpp>
 #include <oxide/vulkan/resources/texture_descriptor.hpp>
 #include <oxide/vulkan/resources/ubo_descriptor.hpp>

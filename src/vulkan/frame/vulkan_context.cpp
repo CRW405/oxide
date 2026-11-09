@@ -344,46 +344,52 @@ void VulkanContext::createDepthResources() {
 		depth_format_ = findDepthFormat(sample_count_);
 	}
 
+	depth_images_.resize(swapchain_images_.size());
 	try {
-		VkImageCreateInfo image_info{};
-		image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		image_info.imageType     = VK_IMAGE_TYPE_2D;
-		image_info.format        = depth_format_;
-		image_info.extent        = { swapchain_extent_.width, swapchain_extent_.height, 1 };
-		image_info.mipLevels     = 1;
-		image_info.arrayLayers   = 1;
-		image_info.samples       = sample_count_;
-		image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
-		image_info.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
-		image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		checkVk(vkCreateImage(device_.device(), &image_info, nullptr, &depth_image_), "create depth image");
+		for (AttachmentImage &attachment : depth_images_) {
+			VkImageCreateInfo image_info{};
+			image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			image_info.imageType     = VK_IMAGE_TYPE_2D;
+			image_info.format        = depth_format_;
+			image_info.extent        = { swapchain_extent_.width, swapchain_extent_.height, 1 };
+			image_info.mipLevels     = 1;
+			image_info.arrayLayers   = 1;
+			image_info.samples       = sample_count_;
+			image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+			image_info.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+			image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+			image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			checkVk(vkCreateImage(device_.device(), &image_info, nullptr, &attachment.image),
+			        "create depth image");
 
-		VkMemoryRequirements memory_requirements{};
-		vkGetImageMemoryRequirements(device_.device(), depth_image_, &memory_requirements);
+			VkMemoryRequirements memory_requirements{};
+			vkGetImageMemoryRequirements(device_.device(), attachment.image, &memory_requirements);
 
-		const DeviceMemoryAllocation allocation =
-		    device_.allocateMemory(memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		depth_image_memory_ = allocation.memory;
-		depth_image_memory_offset_ = allocation.offset;
-		checkVk(vkBindImageMemory(device_.device(), depth_image_, depth_image_memory_, depth_image_memory_offset_),
-		        "bind depth image memory");
+			const DeviceMemoryAllocation allocation =
+			    device_.allocateMemory(memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			attachment.memory       = allocation.memory;
+			attachment.memoryOffset = allocation.offset;
+			attachment.memorySize   = allocation.size;
+			checkVk(vkBindImageMemory(device_.device(), attachment.image, attachment.memory,
+			                          attachment.memoryOffset),
+			        "bind depth image memory");
 
-		VkImageViewCreateInfo view_info{};
-		view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		view_info.image                           = depth_image_;
-		view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-		view_info.format                          = depth_format_;
-		view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
-		view_info.subresourceRange.baseMipLevel   = 0;
-		view_info.subresourceRange.levelCount     = 1;
-		view_info.subresourceRange.baseArrayLayer = 0;
-		view_info.subresourceRange.layerCount     = 1;
-		if (hasStencilComponent(depth_format_)) {
-			view_info.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+			VkImageViewCreateInfo view_info{};
+			view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			view_info.image                           = attachment.image;
+			view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+			view_info.format                          = depth_format_;
+			view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
+			view_info.subresourceRange.baseMipLevel   = 0;
+			view_info.subresourceRange.levelCount     = 1;
+			view_info.subresourceRange.baseArrayLayer = 0;
+			view_info.subresourceRange.layerCount     = 1;
+			if (hasStencilComponent(depth_format_)) {
+				view_info.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+			}
+			checkVk(vkCreateImageView(device_.device(), &view_info, nullptr, &attachment.view),
+			        "create depth image view");
 		}
-		checkVk(vkCreateImageView(device_.device(), &view_info, nullptr, &depth_image_view_),
-		        "create depth image view");
 	} catch (...) {
 		destroyDepthResources();
 		throw;
@@ -394,66 +400,71 @@ void VulkanContext::destroyDepthResources() noexcept {
 	if (device_.device() == VK_NULL_HANDLE) {
 		return;
 	}
-	if (depth_image_view_ != VK_NULL_HANDLE) {
-		vkDestroyImageView(device_.device(), depth_image_view_, nullptr);
-		depth_image_view_ = VK_NULL_HANDLE;
+	for (AttachmentImage &attachment : depth_images_) {
+		if (attachment.view != VK_NULL_HANDLE) {
+			vkDestroyImageView(device_.device(), attachment.view, nullptr);
+		}
+		if (attachment.image != VK_NULL_HANDLE) {
+			vkDestroyImage(device_.device(), attachment.image, nullptr);
+		}
+		if (attachment.memory != VK_NULL_HANDLE) {
+			device_.freeMemory({ attachment.memory, attachment.memoryOffset, attachment.memorySize, 0, nullptr });
+		}
+		attachment = {};
 	}
-	if (depth_image_ != VK_NULL_HANDLE) {
-		vkDestroyImage(device_.device(), depth_image_, nullptr);
-		depth_image_ = VK_NULL_HANDLE;
-	}
-	if (depth_image_memory_ != VK_NULL_HANDLE) {
-		device_.freeMemory({ depth_image_memory_, depth_image_memory_offset_, 0, 0, nullptr });
-		depth_image_memory_ = VK_NULL_HANDLE;
-		depth_image_memory_offset_ = 0;
-	}
+	depth_images_.clear();
 	depth_format_ = VK_FORMAT_UNDEFINED;
 }
 
 void VulkanContext::createColorResources() {
 	if (sample_count_ == VK_SAMPLE_COUNT_1_BIT) {
+		destroyColorResources();
 		return;
 	}
 
+	color_images_.resize(swapchain_images_.size());
 	try {
-		VkImageCreateInfo image_info{};
-		image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		image_info.imageType     = VK_IMAGE_TYPE_2D;
-		image_info.format        = swapchain_format_;
-		image_info.extent        = { swapchain_extent_.width, swapchain_extent_.height, 1 };
-		image_info.mipLevels     = 1;
-		image_info.arrayLayers   = 1;
-		image_info.samples       = sample_count_;
-		image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
-		image_info.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
-		image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		checkVk(vkCreateImage(device_.device(), &image_info, nullptr, &color_image_),
-		        "create multisample color image");
+		for (AttachmentImage &attachment : color_images_) {
+			VkImageCreateInfo image_info{};
+			image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+			image_info.imageType     = VK_IMAGE_TYPE_2D;
+			image_info.format        = swapchain_format_;
+			image_info.extent        = { swapchain_extent_.width, swapchain_extent_.height, 1 };
+			image_info.mipLevels     = 1;
+			image_info.arrayLayers   = 1;
+			image_info.samples       = sample_count_;
+			image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+			image_info.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+			image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+			image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			checkVk(vkCreateImage(device_.device(), &image_info, nullptr, &attachment.image),
+			        "create multisample color image");
 
-		VkMemoryRequirements memory_requirements{};
-		vkGetImageMemoryRequirements(device_.device(), color_image_, &memory_requirements);
+			VkMemoryRequirements memory_requirements{};
+			vkGetImageMemoryRequirements(device_.device(), attachment.image, &memory_requirements);
 
-		const DeviceMemoryAllocation allocation =
-		    device_.allocateMemory(memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		color_image_memory_        = allocation.memory;
-		color_image_memory_offset_ = allocation.offset;
-		checkVk(vkBindImageMemory(device_.device(), color_image_, color_image_memory_,
-		                          color_image_memory_offset_),
-		        "bind multisample color image memory");
+			const DeviceMemoryAllocation allocation =
+			    device_.allocateMemory(memory_requirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			attachment.memory       = allocation.memory;
+			attachment.memoryOffset = allocation.offset;
+			attachment.memorySize   = allocation.size;
+			checkVk(vkBindImageMemory(device_.device(), attachment.image, attachment.memory,
+			                          attachment.memoryOffset),
+			        "bind multisample color image memory");
 
-		VkImageViewCreateInfo view_info{};
-		view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		view_info.image                           = color_image_;
-		view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-		view_info.format                          = swapchain_format_;
-		view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-		view_info.subresourceRange.baseMipLevel   = 0;
-		view_info.subresourceRange.levelCount     = 1;
-		view_info.subresourceRange.baseArrayLayer = 0;
-		view_info.subresourceRange.layerCount     = 1;
-		checkVk(vkCreateImageView(device_.device(), &view_info, nullptr, &color_image_view_),
-		        "create multisample color image view");
+			VkImageViewCreateInfo view_info{};
+			view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			view_info.image                           = attachment.image;
+			view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+			view_info.format                          = swapchain_format_;
+			view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+			view_info.subresourceRange.baseMipLevel   = 0;
+			view_info.subresourceRange.levelCount     = 1;
+			view_info.subresourceRange.baseArrayLayer = 0;
+			view_info.subresourceRange.layerCount     = 1;
+			checkVk(vkCreateImageView(device_.device(), &view_info, nullptr, &attachment.view),
+			        "create multisample color image view");
+		}
 	} catch (...) {
 		destroyColorResources();
 		throw;
@@ -464,19 +475,19 @@ void VulkanContext::destroyColorResources() noexcept {
 	if (device_.device() == VK_NULL_HANDLE) {
 		return;
 	}
-	if (color_image_view_ != VK_NULL_HANDLE) {
-		vkDestroyImageView(device_.device(), color_image_view_, nullptr);
-		color_image_view_ = VK_NULL_HANDLE;
+	for (AttachmentImage &attachment : color_images_) {
+		if (attachment.view != VK_NULL_HANDLE) {
+			vkDestroyImageView(device_.device(), attachment.view, nullptr);
+		}
+		if (attachment.image != VK_NULL_HANDLE) {
+			vkDestroyImage(device_.device(), attachment.image, nullptr);
+		}
+		if (attachment.memory != VK_NULL_HANDLE) {
+			device_.freeMemory({ attachment.memory, attachment.memoryOffset, attachment.memorySize, 0, nullptr });
+		}
+		attachment = {};
 	}
-	if (color_image_ != VK_NULL_HANDLE) {
-		vkDestroyImage(device_.device(), color_image_, nullptr);
-		color_image_ = VK_NULL_HANDLE;
-	}
-	if (color_image_memory_ != VK_NULL_HANDLE) {
-		device_.freeMemory({ color_image_memory_, color_image_memory_offset_, 0, 0, nullptr });
-		color_image_memory_        = VK_NULL_HANDLE;
-		color_image_memory_offset_ = 0;
-	}
+	color_images_.clear();
 }
 
 void VulkanContext::recoverSurface() {
@@ -493,6 +504,10 @@ void VulkanContext::recoverSurface() {
 	createRenderPass();
 	createFramebuffers();
 	createCommandResources();
+	// Surface recovery always replaces the render pass, so long-lived
+	// render-pass-dependent objects must be rebuilt just like a normal
+	// swapchain recreation.
+	notifySwapchainRecreated(true);
 }
 
 void VulkanContext::destroySwapchain(bool destroy_render_pass) {
@@ -565,8 +580,44 @@ void VulkanContext::setSwapchainRecreatedCallback(SwapchainRecreatedCallback cal
 	swapchain_recreated_callback_ = std::move(callback);
 }
 
-void VulkanContext::addSwapchainRecreatedCallback(SwapchainRecreatedCallback callback) {
-	additional_swapchain_callbacks_.push_back(std::move(callback));
+SwapchainCallbackId VulkanContext::addSwapchainRecreatedCallback(SwapchainRecreatedCallback callback) {
+	const SwapchainCallbackId id = next_swapchain_callback_id_++;
+	additional_swapchain_callbacks_.push_back(SwapchainCallbackEntry{ id, std::move(callback) });
+	return id;
+}
+
+bool VulkanContext::removeSwapchainRecreatedCallback(SwapchainCallbackId id) noexcept {
+	const auto found = std::find_if(
+	    additional_swapchain_callbacks_.begin(), additional_swapchain_callbacks_.end(),
+	    [id](const SwapchainCallbackEntry &entry) { return entry.id == id; });
+	if (found == additional_swapchain_callbacks_.end()) {
+		return false;
+	}
+	additional_swapchain_callbacks_.erase(found);
+	return true;
+}
+
+void VulkanContext::notifySwapchainRecreated(bool renderPassChanged) {
+	++swapchain_generation_;
+	const SwapchainRecreationInfo info{
+	    render_pass_,
+	    swapchain_format_,
+	    swapchain_extent_,
+	    renderPassChanged,
+	    swapchain_generation_,
+	};
+
+	if (swapchain_recreated_callback_) {
+		swapchain_recreated_callback_(info);
+	}
+	// Copy before invoking so a callback may remove itself or another callback
+	// through the public API without invalidating this iteration.
+	const std::vector<SwapchainCallbackEntry> callbacks = additional_swapchain_callbacks_;
+	for (const SwapchainCallbackEntry &entry : callbacks) {
+		if (entry.callback) {
+			entry.callback(info);
+		}
+	}
 }
 
 void VulkanContext::recreateSwapchain() {
@@ -614,25 +665,7 @@ void VulkanContext::recreateSwapchain() {
 		        "recreate render-finished semaphore");
 	}
 
-	++swapchain_generation_;
-	if (swapchain_recreated_callback_) {
-		swapchain_recreated_callback_(SwapchainRecreationInfo{
-		    render_pass_,
-		    swapchain_format_,
-		    swapchain_extent_,
-		    render_pass_changed,
-		    swapchain_generation_,
-		});
-	}
-	for (const SwapchainRecreatedCallback &callback : additional_swapchain_callbacks_) {
-		callback(SwapchainRecreationInfo{
-		    render_pass_,
-		    swapchain_format_,
-		    swapchain_extent_,
-		    render_pass_changed,
-		    swapchain_generation_,
-		});
-	}
+	notifySwapchainRecreated(render_pass_changed);
 }
 
 VkFramebuffer VulkanContext::framebuffer(std::uint32_t index) const {
@@ -744,15 +777,21 @@ void VulkanContext::createRenderPass() {
 
 void VulkanContext::createFramebuffers() {
 	const bool multisampled = sample_count_ != VK_SAMPLE_COUNT_1_BIT;
+	if (depth_images_.size() != swapchain_image_views_.size()) {
+		throw runtimeError("depth image count does not match the swapchain image count");
+	}
+	if (multisampled && color_images_.size() != swapchain_image_views_.size()) {
+		throw runtimeError("multisample color image count does not match the swapchain image count");
+	}
 	swapchain_framebuffers_.resize(swapchain_image_views_.size());
 	for (size_t i = 0; i < swapchain_image_views_.size(); i++) {
 		VkImageView attachments[3]{};
 		std::uint32_t attachment_count = 0;
 		if (multisampled) {
-			attachments[attachment_count++] = color_image_view_;
+			attachments[attachment_count++] = color_images_[i].view;
 		}
 		attachments[attachment_count++] = swapchain_image_views_[i];
-		attachments[attachment_count++] = depth_image_view_;
+		attachments[attachment_count++] = depth_images_[i].view;
 
 		VkFramebufferCreateInfo framebufferInfo{};
 		framebufferInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;

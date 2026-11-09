@@ -42,9 +42,14 @@ int main() {
 
 		// Scene pass: two fragment outputs, matching the target's two color
 		// attachments. The pipeline sample count must match the target.
-		const oxide::PushConstant scene_push =
-		    oxide::pushConstant<ScenePush>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
-		oxide::PipelineLayout scene_layout(device, { scene_push.range() });
+		// Reflection supplies the push-constant range declared by the shaders.
+		const oxide::GraphicsShaderFiles scene_shaders =
+		    shader_library.graphics("scene");
+		const oxide::ShaderReflection scene_reflection =
+		    oxide::ShaderReflection::fromGraphics(scene_shaders);
+		oxide::PipelineLayout scene_layout(device, scene_reflection);
+		const VkPushConstantRange scene_push_range =
+		    scene_reflection.pushConstantRanges().front();
 
 		oxide::VertexInputDescription scene_vertex_input;
 		scene_vertex_input.addBinding(0, sizeof(SceneVertex))
@@ -63,26 +68,33 @@ int main() {
 		scene_config.depthStencilInfo.depthWriteEnable = VK_TRUE;
 		scene_config.depthStencilInfo.depthCompareOp   = VK_COMPARE_OP_LESS;
 
-		oxide::Pipeline scene_pipeline(
-		    device, shader_library.graphics("scene"), scene_config);
+		oxide::Pipeline scene_pipeline(device, scene_shaders, scene_config);
 
 		// Composite pass: sample both resolved color images on the swapchain.
-		// Each TextureDescriptorSet owns one set layout, so attachment 0 is set
-		// 0 and attachment 1 is set 1 in the shader.
+		// Reflection discovers the two sampled-image sets, so attachment 0 is
+		// set 0 and attachment 1 is set 1 without hand-written bindings.
+		const oxide::GraphicsShaderFiles composite_shaders =
+		    shader_library.graphics("composite");
+		const oxide::ShaderReflection composite_reflection =
+		    oxide::ShaderReflection::fromGraphics(composite_shaders);
+		oxide::PipelineLayout composite_layout(device, composite_reflection);
 		oxide::TextureDescriptorSet color_set(
-		    device, target.colorView(0), target.sampler(0));
+		    device, target.colorView(0), target.sampler(0),
+		    composite_layout.descriptorSetLayout(0));
 		oxide::TextureDescriptorSet glow_set(
-		    device, target.colorView(1), target.sampler(1));
-		oxide::PipelineLayout composite_layout(
-		    device, { color_set.layout(), glow_set.layout() }, {});
+		    device, target.colorView(1), target.sampler(1),
+		    composite_layout.descriptorSetLayout(1));
 
 		oxide::PipelineConfigInfo composite_config =
 		    oxide::Pipeline::defaultPipelineConfigInfo();
 		composite_config.setPipelineLayout(
 		    oxide::BorrowedPipelineLayout(composite_layout.handle()));
+		if (const auto *glow_strength =
+		        composite_reflection.findSpecializationConstant("GLOW_STRENGTH")) {
+			composite_config.fragmentSpecialization.set(*glow_strength, 0.85f);
+		}
 		oxide::SwapchainPipeline composite_pipeline(
-		    vulkan_context, device, shader_library.graphics("composite"),
-		    composite_config);
+		    vulkan_context, device, composite_shaders, composite_config);
 
 		const std::vector<SceneVertex> vertices = {
 			{ { 0.0f, 0.85f },   { 1.00f, 0.30f, 0.20f } },
@@ -111,8 +123,9 @@ int main() {
 			target.setViewportAndScissor(frame.commandBuffer);
 			scene_pipeline.bind(frame.commandBuffer);
 			scene_layout.pushConstant(
-			    frame.commandBuffer, scene_push,
-			    ScenePush{ static_cast<float>(window.time() - start_time) });
+			    frame.commandBuffer, scene_push_range.stageFlags,
+			    ScenePush{ static_cast<float>(window.time() - start_time) },
+			    scene_push_range.offset);
 			vertex_buffer.bind(frame.commandBuffer);
 			scene_pipeline.draw(frame.commandBuffer, static_cast<std::uint32_t>(vertices.size()));
 			target.endRenderPass(frame.commandBuffer);

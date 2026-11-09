@@ -13,6 +13,8 @@
 
 namespace oxide {
 
+namespace {
+
 void transitionImageLayout(VulkanDevice &device, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) {
 	VkCommandBuffer commandBuffer = device.beginSingleTimeCommands();
 
@@ -88,10 +90,11 @@ void copyBufferToImage(VulkanDevice &device, VkBuffer buffer, VkImage image, uin
 	device.endSingleTimeCommands(commandBuffer);
 }
 
+} // namespace
+
 ImageTexture::ImageTexture(VulkanDevice &device, const std::string &imagePath, TextureConfig config) : device_(device) {
 	VkImage image = VK_NULL_HANDLE;
-	VkDeviceMemory image_memory = VK_NULL_HANDLE;
-	VkDeviceSize image_memory_offset = 0;
+	DeviceMemoryAllocation allocation{};
 	VkImageView image_view = VK_NULL_HANDLE;
 	VkSampler sampler = VK_NULL_HANDLE;
 	int width = 0;
@@ -142,14 +145,11 @@ ImageTexture::ImageTexture(VulkanDevice &device, const std::string &imagePath, T
 
 		VkMemoryRequirements memRequirements;
 		vkGetImageMemoryRequirements(device_.device(), image, &memRequirements);
-		const DeviceMemoryAllocation allocation =
-		    device_.allocateMemory(memRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		image_memory = allocation.memory;
-		image_memory_offset = allocation.offset;
-		image_memory = allocation.memory;
+		allocation = device_.allocateMemory(memRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		handle_ = device_.resources().registerImage(
-		    { image, image_memory, image_memory_offset, memRequirements.size, VK_NULL_HANDLE, VK_NULL_HANDLE });
-		checkVk(vkBindImageMemory(device_.device(), image, image_memory, image_memory_offset), "bind texture image memory");
+		    { image, allocation.memory, allocation.offset, allocation.size, VK_NULL_HANDLE, VK_NULL_HANDLE });
+		checkVk(vkBindImageMemory(device_.device(), image, allocation.memory, allocation.offset),
+		        "bind texture image memory");
 
 		transitionImageLayout(device_, image, VK_IMAGE_LAYOUT_UNDEFINED,
 		                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -168,6 +168,7 @@ ImageTexture::ImageTexture(VulkanDevice &device, const std::string &imagePath, T
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		barrier.subresourceRange.baseArrayLayer = 0;
 		barrier.subresourceRange.layerCount = 1;
+		barrier.subresourceRange.levelCount = 1;
 		int mip_width = width, mip_height = height;
 		for (std::uint32_t level = 1; level < mip_levels_; ++level) {
 			barrier.subresourceRange.baseMipLevel = level - 1;
@@ -246,7 +247,21 @@ ImageTexture::ImageTexture(VulkanDevice &device, const std::string &imagePath, T
 		if (pixels != nullptr) {
 			stbi_image_free(pixels);
 		}
-		destroyResources();
+		if (handle_.valid()) {
+			// The registry owns the image once registration succeeds, and
+			// destroyResources() returns its memory allocation as well.
+			destroyResources();
+		} else {
+			if (image_view != VK_NULL_HANDLE) {
+				vkDestroyImageView(device_.device(), image_view, nullptr);
+			}
+			if (image != VK_NULL_HANDLE) {
+				vkDestroyImage(device_.device(), image, nullptr);
+			}
+			if (allocation.memory != VK_NULL_HANDLE) {
+				device_.freeMemory(allocation);
+			}
+		}
 		throw;
 	}
 }

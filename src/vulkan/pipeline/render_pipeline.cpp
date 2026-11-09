@@ -29,7 +29,7 @@ SwapchainPipeline::SwapchainPipeline(
 	config_.setRenderPass(context_.renderPass());
 	rebuild(context_.renderPass());
 	const std::weak_ptr<CallbackState> state = callback_state_;
-	context_.addSwapchainRecreatedCallback([state](const SwapchainRecreationInfo &info) {
+	callback_id_ = context_.addSwapchainRecreatedCallback([state](const SwapchainRecreationInfo &info) {
 		if (const std::shared_ptr<CallbackState> callback = state.lock();
 		    callback != nullptr && callback->owner != nullptr && info.renderPassChanged) {
 			callback->owner->rebuild(info.renderPass);
@@ -55,6 +55,9 @@ void SwapchainPipeline::rebuild(VkRenderPass renderPass) {
 SwapchainPipeline::~SwapchainPipeline() {
 	if (callback_state_ != nullptr) {
 		callback_state_->owner = nullptr;
+	}
+	if (callback_id_ != 0) {
+		context_.removeSwapchainRecreatedCallback(callback_id_);
 	}
 }
 
@@ -113,6 +116,9 @@ Pipeline::Pipeline(
     const std::string        &fragFilepath,
     const PipelineConfigInfo &configInfo)
     : device_(device) {
+	if (configInfo.renderPass == VK_NULL_HANDLE) {
+		throw invalidArgument("graphics pipeline requires a valid render pass");
+	}
 	VkShaderModule vertex_shader_module   = VK_NULL_HANDLE;
 	VkShaderModule fragment_shader_module = VK_NULL_HANDLE;
 	try {
@@ -142,16 +148,23 @@ Pipeline::Pipeline(
 			layout_ = configInfo.pipelineLayout.get();
 		}
 
+		VkSpecializationInfo vertex_specialization = configInfo.vertexSpecialization.info();
+		VkSpecializationInfo fragment_specialization = configInfo.fragmentSpecialization.info();
+
 		VkPipelineShaderStageCreateInfo shaderStages[2]{};
 		shaderStages[0].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		shaderStages[0].stage  = VK_SHADER_STAGE_VERTEX_BIT;
 		shaderStages[0].module = vertex_shader_module;
 		shaderStages[0].pName  = "main";
+		shaderStages[0].pSpecializationInfo =
+		    configInfo.vertexSpecialization.empty() ? nullptr : &vertex_specialization;
 
 		shaderStages[1].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		shaderStages[1].stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
 		shaderStages[1].module = fragment_shader_module;
 		shaderStages[1].pName  = "main";
+		shaderStages[1].pSpecializationInfo =
+		    configInfo.fragmentSpecialization.empty() ? nullptr : &fragment_specialization;
 
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
 		pipelineInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -279,7 +292,8 @@ void Pipeline::drawIndexed(
 ComputePipeline::ComputePipeline(
     VulkanDevice      &device,
     const std::string &compFilepath,
-    BorrowedPipelineLayout layout)
+    BorrowedPipelineLayout layout,
+    const SpecializationConstants &specialization)
     : device_(device) {
 	VkShaderModule module = VK_NULL_HANDLE;
 	VkPipeline pipeline = VK_NULL_HANDLE;
@@ -305,12 +319,16 @@ ComputePipeline::ComputePipeline(
 			layout_ = layout.get();
 		}
 
+		VkSpecializationInfo specialization_info = specialization.info();
+
 		VkComputePipelineCreateInfo pipeline_info{};
 		pipeline_info.sType        = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 		pipeline_info.stage.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		pipeline_info.stage.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
 		pipeline_info.stage.module = module;
 		pipeline_info.stage.pName  = "main";
+		pipeline_info.stage.pSpecializationInfo =
+		    specialization.empty() ? nullptr : &specialization_info;
 		pipeline_info.layout       = layout_;
 		pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
 		pipeline_info.basePipelineIndex  = -1;
@@ -337,8 +355,9 @@ ComputePipeline::ComputePipeline(
 ComputePipeline::ComputePipeline(
     VulkanDevice &device,
     const ComputeShaderFile &shader,
-    BorrowedPipelineLayout layout)
-    : ComputePipeline(device, shader.compute, layout) {}
+    BorrowedPipelineLayout layout,
+    const SpecializationConstants &specialization)
+    : ComputePipeline(device, shader.compute, layout, specialization) {}
 
 ComputePipeline::~ComputePipeline() {
 	if (device_.device() != VK_NULL_HANDLE) {

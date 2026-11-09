@@ -36,11 +36,15 @@ float noise(vec2 coordinates) {
 }
 
 // Fractal Brownian motion: sum several octaves of noise for richer detail.
+// The octave count is a specialization constant so the pipeline can trade
+// detail for speed without recompiling the shader.
+layout(constant_id = 0) const int FBM_OCTAVES = 5;
+
 float fbm(vec2 coordinates) {
 	float value     = 0.0;
 	float amplitude = 0.5;
 
-	for (int octave = 0; octave < 5; octave++) {
+	for (int octave = 0; octave < FBM_OCTAVES; octave++) {
 		value += amplitude * noise(coordinates);
 		coordinates *= 2.0;
 		amplitude *= 0.5;

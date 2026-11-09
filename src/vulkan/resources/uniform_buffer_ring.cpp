@@ -5,6 +5,17 @@
 
 namespace oxide {
 
+namespace {
+
+VkDescriptorSetLayout requireLayout(VkDescriptorSetLayout layout) {
+	if (layout == VK_NULL_HANDLE) {
+		throw invalidArgument("uniform buffer ring requires a valid descriptor set layout");
+	}
+	return layout;
+}
+
+} // namespace
+
 UniformBufferRing::UniformBufferRing(
     VulkanDevice       &device,
     std::uint32_t       frameCount,
@@ -13,22 +24,48 @@ UniformBufferRing::UniformBufferRing(
     std::uint32_t       binding,
     VkShaderStageFlags  stageFlags)
     : device_(device),
-      layout_(device, DescriptorBinding{ binding, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stageFlags }),
+      owned_layout_(std::make_unique<DescriptorSetLayout>(
+          device, DescriptorBinding{ binding, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stageFlags })),
+      layout_handle_(owned_layout_->handle()),
       pool_(device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, frameCount, frameCount),
       binding_(binding),
-      size_(size) {
+      size_(size),
+      frame_count_(frameCount) {
+	initialize(initialData);
+}
+
+UniformBufferRing::UniformBufferRing(
+    VulkanDevice        &device,
+    std::uint32_t        frameCount,
+    VkDeviceSize         size,
+    const void          *initialData,
+    VkDescriptorSetLayout layout,
+    std::uint32_t        binding)
+    : device_(device),
+      layout_handle_(requireLayout(layout)),
+      pool_(device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, frameCount, frameCount),
+      binding_(binding),
+      size_(size),
+      frame_count_(frameCount) {
+	initialize(initialData);
+}
+
+void UniformBufferRing::initialize(const void *initialData) {
 	if (initialData == nullptr || size_ == 0) {
 		throw invalidArgument("uniform buffer ring requires non-empty initial data");
 	}
-
-	buffers_.reserve(frameCount);
-	sets_.reserve(frameCount);
-	for (std::uint32_t index = 0; index < frameCount; ++index) {
-		buffers_.push_back(std::make_unique<UniformBuffer>(device_, initialData, size_));
-		sets_.push_back(pool_.allocate(layout_.handle()));
+	if (pool_.handle() == VK_NULL_HANDLE || frame_count_ == 0) {
+		throw invalidArgument("uniform buffer ring requires at least one frame in flight");
 	}
 
-	for (std::uint32_t index = 0; index < frameCount; ++index) {
+	buffers_.reserve(frame_count_);
+	sets_.reserve(frame_count_);
+	for (std::uint32_t index = 0; index < frame_count_; ++index) {
+		buffers_.push_back(std::make_unique<UniformBuffer>(device_, initialData, size_));
+		sets_.push_back(pool_.allocate(layout_handle_));
+	}
+
+	for (std::uint32_t index = 0; index < frame_count_; ++index) {
 		VkDescriptorBufferInfo bufferInfo{};
 		bufferInfo.buffer = buffers_[index]->buffer();
 		bufferInfo.offset = 0;

@@ -33,8 +33,15 @@ int main() {
 		pipeline_config.setRenderPass(target.renderPass());
 
 		oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
-		oxide::Pipeline      pipeline(
-		    device, shader_library.graphics("offscreen_png"), pipeline_config);
+		const oxide::GraphicsShaderFiles triangle_shaders =
+		    shader_library.graphics("offscreen_png");
+		const oxide::ShaderReflection triangle_reflection =
+		    oxide::ShaderReflection::fromGraphics(triangle_shaders);
+		oxide::PipelineLayout triangle_layout(device, triangle_reflection);
+		pipeline_config.setPipelineLayout(
+		    oxide::BorrowedPipelineLayout(triangle_layout.handle()));
+
+		oxide::Pipeline pipeline(device, triangle_shaders, pipeline_config);
 
 		const std::vector<Vertex> vertices = {
 			{ { 0.0f, -0.75f },  { 0.95f, 0.25f, 0.25f } },

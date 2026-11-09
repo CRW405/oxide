@@ -66,6 +66,11 @@ Buffer::Buffer(VulkanDevice &device, const void *data, VkDeviceSize size, VkBuff
 			vkDestroyBuffer(device_.device(), buffer, nullptr);
 		}
 		handle_ = {};
+		// The allocation is not owned by the registry until registration
+		// succeeds, so every failure path must return it to the allocator here.
+		if (allocation.memory != VK_NULL_HANDLE) {
+			device_.freeMemory(allocation);
+		}
 		throw;
 	}
 }

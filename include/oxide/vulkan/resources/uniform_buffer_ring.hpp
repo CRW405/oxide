@@ -16,13 +16,15 @@ namespace oxide {
 // ============================================================================
 // Per-frame uniform buffer ring
 //
-// Owns one host-visible uniform buffer per frame in flight, a single descriptor
-// set layout, and one descriptor set per buffer. Index updates and binds with
-// Frame::frameIndex so each slot is only rewritten after VulkanContext has
-// waited on that slot's fence.
+// Owns one host-visible uniform buffer per frame in flight and one descriptor
+// set per buffer. When constructed with a descriptor set layout, that layout is
+// supplied by another owner, such as a reflected PipelineLayout; otherwise the
+// ring creates its own.
 //
-// This avoids the data race that occurs when a single UBO is updated while the
-// previous frame is still reading it on the GPU.
+// Index updates and binds with Frame::frameIndex so each slot is only rewritten
+// after VulkanContext has waited on that slot's fence. This avoids the data race
+// that occurs when a single UBO is updated while the previous frame is still
+// reading it on the GPU.
 // ============================================================================
 class UniformBufferRing {
   public:
@@ -50,6 +52,35 @@ class UniformBufferRing {
 	          stageFlags) {
 		static_assert(std::is_trivially_copyable_v<T>, "uniform buffer data must be trivially copyable");
 	}
+
+	// Allocate every frame's set from a layout owned elsewhere. The reflected
+	// PipelineLayout::descriptorSetLayout(set) accessor is the usual source.
+	// The layout must already declare a uniform buffer at binding.
+	UniformBufferRing(
+	    VulkanDevice        &device,
+	    std::uint32_t        frameCount,
+	    VkDeviceSize         size,
+	    const void          *initialData,
+	    VkDescriptorSetLayout layout,
+	    std::uint32_t        binding = 0);
+
+	template <typename T>
+	UniformBufferRing(
+	    VulkanDevice        &device,
+	    std::uint32_t        frameCount,
+	    const T             &initialData,
+	    VkDescriptorSetLayout layout,
+	    std::uint32_t        binding = 0)
+	    : UniformBufferRing(
+	          device,
+	          frameCount,
+	          static_cast<VkDeviceSize>(sizeof(T)),
+	          &initialData,
+	          layout,
+	          binding) {
+		static_assert(std::is_trivially_copyable_v<T>, "uniform buffer data must be trivially copyable");
+	}
+
 	~UniformBufferRing();
 
 	UniformBufferRing(const UniformBufferRing &)            = delete;
@@ -57,10 +88,8 @@ class UniformBufferRing {
 	UniformBufferRing(UniformBufferRing &&)                 = delete;
 	UniformBufferRing &operator=(UniformBufferRing &&)      = delete;
 
-	[[nodiscard]] VkDescriptorSetLayout layout() const noexcept { return layout_.handle(); }
-	[[nodiscard]] std::uint32_t         frameCount() const noexcept {
-		return static_cast<std::uint32_t>(buffers_.size());
-	}
+	[[nodiscard]] VkDescriptorSetLayout layout() const noexcept { return layout_handle_; }
+	[[nodiscard]] std::uint32_t         frameCount() const noexcept { return frame_count_; }
 	[[nodiscard]] VkDescriptorSet descriptorSet(std::uint32_t frameIndex) const;
 
 	void update(std::uint32_t frameIndex, const void *data, VkDeviceSize size);
@@ -81,14 +110,19 @@ class UniformBufferRing {
 	    VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS) const;
 
   private:
+	void initialize(const void *initialData);
 	void checkFrameIndex(std::uint32_t frameIndex) const;
 
 	VulkanDevice                               &device_;
-	DescriptorSetLayout                         layout_;
+	std::unique_ptr<DescriptorSetLayout>        owned_layout_;
+	VkDescriptorSetLayout                       layout_handle_ = VK_NULL_HANDLE;
+	// Buffers are declared before the pool so the pool (and its descriptor
+	// sets) is destroyed first, releasing references before the buffers go.
+	std::vector<std::unique_ptr<UniformBuffer>> buffers_;
 	DescriptorPool                              pool_;
 	std::uint32_t                               binding_ = 0;
 	VkDeviceSize                                size_    = 0;
-	std::vector<std::unique_ptr<UniformBuffer>> buffers_;
+	std::uint32_t                               frame_count_ = 0;
 	std::vector<VkDescriptorSet>                sets_;
 };
 

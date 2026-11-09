@@ -29,9 +29,17 @@ int main() {
 		    oxide::Pipeline::defaultPipelineConfigInfo();
 		pipeline_config.setVertexInput(vertex_input_description);
 
-		oxide::ShaderLibrary     shader_library(OXIDE_SHADER_DIR);
+		oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
+		const oxide::GraphicsShaderFiles quad_shaders =
+		    shader_library.graphics("indexed_quad");
+		const oxide::ShaderReflection quad_reflection =
+		    oxide::ShaderReflection::fromGraphics(quad_shaders);
+		oxide::PipelineLayout quad_layout(device, quad_reflection);
+		pipeline_config.setPipelineLayout(
+		    oxide::BorrowedPipelineLayout(quad_layout.handle()));
+
 		oxide::SwapchainPipeline pipeline(
-		    vulkan_context, device, shader_library.graphics("indexed_quad"), pipeline_config);
+		    vulkan_context, device, quad_shaders, pipeline_config);
 
 		// Four corners share two triangles through the index buffer below.
 		const std::vector<QuadVertex> quad_vertices = {

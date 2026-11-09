@@ -29,10 +29,20 @@ int main() {
 
 		const AnimationUniforms initial_uniforms{ { 0.0f, 0.0f }, 1.0f, 0.0f };
 
+		// Reflect the shader pair first. The reflected pipeline layout owns the
+		// descriptor set layout used by the uniform buffer ring.
+		oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
+		const oxide::GraphicsShaderFiles animation_shaders =
+		    shader_library.graphics("animated_uniform");
+		const oxide::ShaderReflection animation_reflection =
+		    oxide::ShaderReflection::fromGraphics(animation_shaders);
+		oxide::PipelineLayout pipeline_layout(device, animation_reflection);
+
 		// One uniform buffer and descriptor set per frame in flight, so the CPU
 		// never overwrites data the GPU is still reading.
 		oxide::UniformBufferRing animation_uniform_buffer(
-		    device, oxide::MAX_FRAMES_IN_FLIGHT, initial_uniforms);
+		    device, oxide::MAX_FRAMES_IN_FLIGHT, initial_uniforms,
+		    pipeline_layout.descriptorSetLayout(0));
 
 		oxide::VertexInputDescription vertex_input_description;
 		vertex_input_description.addBinding(0, sizeof(AnimatedVertex))
@@ -43,17 +53,11 @@ int main() {
 		oxide::PipelineConfigInfo pipeline_config =
 		    oxide::Pipeline::defaultPipelineConfigInfo();
 		pipeline_config.setVertexInput(vertex_input_description);
-
-		// Expose the per-frame uniform buffer to the vertex shader.
-		oxide::PipelineLayout pipeline_layout(
-		    device, { animation_uniform_buffer.layout() }, {});
 		pipeline_config.setPipelineLayout(
 		    oxide::BorrowedPipelineLayout(pipeline_layout.handle()));
 
-		oxide::ShaderLibrary     shader_library(OXIDE_SHADER_DIR);
 		oxide::SwapchainPipeline pipeline(
-		    vulkan_context, device, shader_library.graphics("animated_uniform"),
-		    pipeline_config);
+		    vulkan_context, device, animation_shaders, pipeline_config);
 
 		const std::vector<AnimatedVertex> triangle_vertices = {
 			{ { -0.5f, -0.5f }, { 1.0f, 0.2f, 0.2f } },

@@ -20,6 +20,7 @@ It handles the setup that most Vulkan programs need:
 - Texture loading and sampled image descriptor sets
 - Uniform buffers and uniform buffer descriptor sets
 - Pipeline layouts and graphics pipelines
+- Shader reflection for descriptor sets, push constants, and specialization constants
 - Offscreen and headless render targets with sampling and PNG readback
 
 The code keeps Vulkan objects visible and explicit. It reduces repeated setup
@@ -112,7 +113,6 @@ arguments are still evaluated.
 
 ## TODO
 
-- Shader reflection and specialization constants
 - OBJ reader
 - GLTF reader
 
@@ -143,6 +143,14 @@ If the window changes size, the context recreates the swapchain and the
 resources that depend on it. `beginFrameScope()` returns an inactive scope while that
 work is being done, so the application can skip that iteration. If the surface
 format changes, `SwapchainPipeline` rebuilds its pipeline automatically.
+
+Shader reflection is available through `ShaderReflection::fromGraphics()` and
+`fromCompute()`. Pass the result to `PipelineLayout` to create matching
+descriptor set layouts and push-constant ranges instead of declaring them by
+hand. The same reflection object reports specialization constants, which
+`PipelineConfigInfo::vertexSpecialization` and `fragmentSpecialization` can
+override before pipeline creation; `ComputePipeline` takes an optional
+`SpecializationConstants` argument.
 
 For offscreen work, create an `OffscreenTarget` and record its pass with
 `beginRenderPass()`/`endRenderPass()`. The color image finishes in a sampled

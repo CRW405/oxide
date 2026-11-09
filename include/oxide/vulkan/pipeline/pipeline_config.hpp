@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <vector>
 
+#include <oxide/vulkan/pipeline/specialization_constants.hpp>
+
 namespace oxide {
 
 // A Vulkan handle supplied by another owner. Pipeline creation may use it but
@@ -64,6 +66,12 @@ struct PipelineConfigInfo {
 	VkPipelineDepthStencilStateCreateInfo  depthStencilInfo;
 	std::vector<VkDynamicState>            dynamicStates;
 	VkPipelineDynamicStateCreateInfo       dynamicStateInfo;
+
+	// Per-stage specialization constant overrides used when the pipeline is
+	// created. Empty stages use the defaults compiled into the SPIR-V.
+	SpecializationConstants                vertexSpecialization;
+	SpecializationConstants                fragmentSpecialization;
+
 	BorrowedPipelineLayout                 pipelineLayout;
 	VkRenderPass                           renderPass     = VK_NULL_HANDLE;
 	std::uint32_t                          subpass        = 0;

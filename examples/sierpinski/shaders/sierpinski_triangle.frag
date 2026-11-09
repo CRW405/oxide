@@ -5,6 +5,10 @@ layout(location = 0) in vec2 fragmentCoord;
 
 layout(location = 0) out vec4 outColor;
 
+// Specialization constant discovered by SPIRV-Reflect. main.cpp overrides it
+// when creating the pipeline, which caps the work done per pixel.
+layout(constant_id = 0) const int ITERATION_LIMIT = 24;
+
 // Push constant block; matches FractalSettings in main.cpp.
 layout(push_constant) uniform FractalSettings {
     int recursion_depth;
@@ -13,7 +17,7 @@ layout(push_constant) uniform FractalSettings {
 } fractal;
 
 void main() {
-    int recursionDepth = fractal.recursion_depth;
+    int recursionDepth = min(fractal.recursion_depth, ITERATION_LIMIT);
 
     // Map NDC screen space [-1, 1] to fractal coordinate space [0, 1].
     vec2 centeredCoord = (fragmentCoord + 1.0) * 0.5 - vec2(0.5);

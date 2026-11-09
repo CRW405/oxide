@@ -32,10 +32,19 @@ int main() {
 	pipeline_config.setVertexInput(vertex_input_description);
 
 	// "vulkan_triangle" resolves the compiled vulkan_triangle.vert.spv and
-	// vulkan_triangle.frag.spv pair from OXIDE_SHADER_DIR.
-	oxide::ShaderLibrary     shader_library(OXIDE_SHADER_DIR);
+	// vulkan_triangle.frag.spv pair from OXIDE_SHADER_DIR. Reflection reads the
+	// same SPIR-V, so the pipeline layout always matches the shader interface.
+	oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
+	const oxide::GraphicsShaderFiles triangle_shaders =
+	    shader_library.graphics("vulkan_triangle");
+	const oxide::ShaderReflection triangle_reflection =
+	    oxide::ShaderReflection::fromGraphics(triangle_shaders);
+	oxide::PipelineLayout triangle_layout(device, triangle_reflection);
+	pipeline_config.setPipelineLayout(
+	    oxide::BorrowedPipelineLayout(triangle_layout.handle()));
+
 	oxide::SwapchainPipeline pipeline(
-	    vulkan_context, device, shader_library.graphics("vulkan_triangle"), pipeline_config);
+	    vulkan_context, device, triangle_shaders, pipeline_config);
 
 	// Counter-clockwise triangle in normalized device coordinates. Each vertex
 	// carries its own color, which the fragment shader interpolates.

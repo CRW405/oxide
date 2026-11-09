@@ -3,6 +3,12 @@
 This file contains the detailed diagnostics, backend architecture notes, and
 graphics/Vulkan background that support the shorter project README.
 
+## Philosophy
+
+- DOD core
+- Wrappers for simplicity and RAII
+- Keep it simple
+
 ## Diagnostics
 
 All engine diagnostics go to stderr through the logger in
@@ -82,15 +88,26 @@ The render pass resolves automatically at subpass end; `colorImage()`,
 per color attachment.
 
 `VulkanContext` applies the same pattern to window rendering through
-`SwapchainConfig::sampleCount`: it allocates a multisampled color image and
-depth image, renders into them, and resolves into the swapchain image before
-presentation. Unsupported sample counts fall back to `VK_SAMPLE_COUNT_1_BIT`
-with a warning. `VulkanDevice::supportsSampleCount()` probes format and usage
-combinations so callers can choose a valid count.
+`SwapchainConfig::sampleCount`: it allocates a multisampled color image and a
+depth image for every swapchain image, renders into the pair owned by the
+acquired image, and resolves into that swapchain image before presentation.
+Per-image attachments keep frames in flight from writing the same depth or MSAA
+color image concurrently. Unsupported sample counts fall back to
+`VK_SAMPLE_COUNT_1_BIT` with a warning. `VulkanDevice::supportsSampleCount()`
+probes format and usage combinations so callers can choose a valid count.
 
 `ShaderLibrary` keeps shader selection readable:
 `shaders.graphics("water")` resolves `water.vert.spv` and `water.frag.spv`,
 while `shaders.compute("particles")` resolves `particles.comp.spv`.
+`ShaderReflection` reads those modules with SPIRV-Reflect and merges the
+interface of every stage: descriptor bindings, push-constant ranges, and
+specialization constants. `PipelineLayout(device, reflection)` turns the merged
+bindings into owned descriptor set layouts, including empty layouts for gaps in
+set indices, and copies the reflected push ranges. Descriptor wrappers can then
+allocate from `PipelineLayout::descriptorSetLayout(set)` so the shader and the
+CPU-side layout share one source of truth. `SpecializationConstants` stores
+per-stage overrides for `PipelineConfigInfo` (or the optional compute-pipeline
+argument) and builds the `VkSpecializationInfo` used at pipeline creation.
 Compute-only and offscreen programs can construct `VulkanDevice("Particles")`
 without GLFW or a presentation context. `beginSingleTimeCommands()` and
 `endSingleTimeCommands()` cover one-shot work such as uploads, readback, and
@@ -108,8 +125,9 @@ Uniform and storage buffers use host-visible memory for simple updates and
 readback. Vertex and index buffers use staging uploads into device-local
 memory. `Buffer::read()` copies results back after the device is idle.
 
-The project uses C++20, GLFW, Vulkan, `stb_image`/`stb_image_write`, and `glslc`
-or `glslangValidator`.
+The project uses C++20, GLFW, Vulkan, `stb_image`/`stb_image_write`,
+`glslc` or `glslangValidator`, and a vendored copy of SPIRV-Reflect under
+`third_party/spirv-reflect/`.
 Examples keep GLSL in `examples/<name>/shaders`; CMake compiles it to SPIR-V
 next to the binary and defines `OXIDE_SHADER_DIR` and `OXIDE_ASSET_DIR`.
 
@@ -123,8 +141,8 @@ next to the binary and defines `OXIDE_SHADER_DIR` and `OXIDE_ASSET_DIR`.
   surface, swapchain, offscreen targets, frame synchronization, and frame
   recording.
 - **Pipeline** — `include/oxide/vulkan/pipeline/` and `src/vulkan/pipeline/`
-  contain pipeline layouts, shader lookup, pipeline configuration, and graphics
-  and compute pipelines.
+  contain pipeline layouts, shader lookup, SPIR-V reflection, specialization
+  constants, pipeline configuration, and graphics and compute pipelines.
 - **Resources** — `include/oxide/vulkan/resources/` and `src/vulkan/resources/`
   contain buffers, textures, descriptors, and uniform-buffer helpers.
 - **Application** — `include/oxide/vulkan/application.hpp` and

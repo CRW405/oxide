@@ -7,6 +7,10 @@ layout(set = 1, binding = 0) uniform sampler2D glow_texture;
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 out_color;
 
+// Specialization constant discovered by SPIRV-Reflect. main.cpp overrides it
+// when creating the composite pipeline.
+layout(constant_id = 0) const float GLOW_STRENGTH = 0.85;
+
 void main() {
     vec3 scene = texture(scene_texture, uv).rgb;
     float glow = texture(glow_texture, uv).r;
@@ -16,6 +20,6 @@ void main() {
     vec2 centered = uv * 2.0 - 1.0;
     float vignette = smoothstep(1.5, 0.35, length(centered));
 
-    vec3 color = background + scene + vec3(0.25, 0.55, 1.0) * glow * 0.85;
+    vec3 color = background + scene + vec3(0.25, 0.55, 1.0) * glow * GLOW_STRENGTH;
     out_color = vec4(color * vignette, 1.0);
 }

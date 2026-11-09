@@ -75,6 +75,7 @@ Window::~Window() {
 Window::Window(Window &&other) noexcept
     : window_(other.window_),
       pressed_keys_(std::move(other.pressed_keys_)),
+      released_keys_(std::move(other.released_keys_)),
       scroll_delta_(other.scroll_delta_),
       position_(other.position_) {
 	if (window_ != nullptr) {
@@ -89,10 +90,11 @@ Window &Window::operator=(Window &&other) noexcept {
 	// previous handle first so its callback mapping cannot outlive it.
 	if (this != &other) {
 		release();
-		window_       = other.window_;
-		pressed_keys_ = std::move(other.pressed_keys_);
-		scroll_delta_ = other.scroll_delta_;
-		position_     = other.position_;
+		window_        = other.window_;
+		pressed_keys_  = std::move(other.pressed_keys_);
+		released_keys_ = std::move(other.released_keys_);
+		scroll_delta_  = other.scroll_delta_;
+		position_      = other.position_;
 		if (window_ != nullptr) {
 			instances_[window_] = this;
 		}
@@ -221,8 +223,21 @@ bool Window::keyPressed(int key) noexcept {
 	return true;
 }
 
-bool Window::keyReleased(int key) const noexcept {
-	return window_ != nullptr && glfwGetKey(window_, key) == GLFW_RELEASE;
+bool Window::keyReleased(int key) noexcept {
+	if (window_ == nullptr) {
+		return false;
+	}
+
+	const auto released = released_keys_.find(key);
+	if (released == released_keys_.end()) {
+		return false;
+	}
+	released_keys_.erase(released);
+	return true;
+}
+
+bool Window::keyDown(int key) const noexcept {
+	return window_ != nullptr && glfwGetKey(window_, key) == GLFW_PRESS;
 }
 
 void Window::keyCallback(GLFWwindow *window, int key, int, int action, int) {
@@ -242,6 +257,8 @@ void Window::scrollCallback(GLFWwindow *window, double x_offset, double y_offset
 void Window::handleKeyEvent(int key, int action) noexcept {
 	if (action == GLFW_PRESS) {
 		pressed_keys_.insert(key);
+	} else if (action == GLFW_RELEASE) {
+		released_keys_.insert(key);
 	}
 }
 

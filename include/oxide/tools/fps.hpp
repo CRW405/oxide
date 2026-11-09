@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace tools {
+namespace oxide {
 
 // ============================================================================
 // Frame-rate reporting
@@ -19,4 +19,4 @@ class FPSCounter {
 	double        report_time_;
 };
 
-}
+} // namespace oxide
