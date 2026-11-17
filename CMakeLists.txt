@@ -15,6 +15,9 @@ option(OXIDE_ENABLE_LOGGING "Enable Oxide diagnostic logging" ON)
 find_package(Vulkan REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
 
+find_path(TINYOBJLOADER_INCLUDE_DIR NAMES tiny_obj_loader.h REQUIRED)
+find_path(CGLTF_INCLUDE_DIR NAMES cgltf/cgltf.h REQUIRED)
+
 find_path(STB_INCLUDE_DIR NAMES stb_image.h
     PATHS /usr/include/stb /usr/local/include/stb
     PATH_SUFFIXES stb
@@ -55,6 +58,8 @@ target_include_directories(oxide PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_include_directories(oxide SYSTEM PRIVATE
+    ${TINYOBJLOADER_INCLUDE_DIR}
+    ${CGLTF_INCLUDE_DIR}
     ${STB_INCLUDE_DIR}
     ${STB_WRITE_INCLUDE_DIR}
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv-reflect"

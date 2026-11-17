@@ -7,6 +7,7 @@ look at the example for the feature you need:
 | --- | --- |
 | First triangle and frame loop | `vulkan_triangle` |
 | Indexed mesh and `Mesh` | `indexed_quad` |
+| OBJ and glTF mesh loading | `model_loading` |
 | Texture loading and sampling | `textured_quad` |
 | Per-frame uniform buffer ring | `animated_uniform` |
 | Push constants and input | `sierpinski` |
@@ -335,6 +336,34 @@ pipeline.drawIndexed(command, indexCount, instanceCount, firstIndex,
 ```
 
 The draw helpers default to one instance and the start of each buffer.
+
+Load static triangle geometry from OBJ or glTF. Each OBJ shape or glTF
+scene-node primitive becomes a `MeshData` with `MeshVertex` position, normal,
+and texture-coordinate fields:
+
+```cpp
+const auto objMeshes = oxide::ObjReader::load("model.obj");
+const auto gltfMeshes = oxide::GltfReader::load("model.gltf");
+
+if (!objMeshes.empty() && !gltfMeshes.empty()) {
+    oxide::Mesh objMesh(device, objMeshes.front().vertices, objMeshes.front().indices);
+    oxide::Mesh gltfMesh(device, gltfMeshes.front().vertices, gltfMeshes.front().indices);
+    // Keep the GPU meshes alive while recording draws.
+}
+```
+
+Configure vertex input to match `MeshVertex` when using the imported data:
+
+```cpp
+oxide::VertexInputDescription input;
+input.addBinding(0, sizeof(oxide::MeshVertex))
+    .addAttribute(0, 0, VK_FORMAT_R32G32B32_SFLOAT,
+                  offsetof(oxide::MeshVertex, position))
+    .addAttribute(1, 0, VK_FORMAT_R32G32B32_SFLOAT,
+                  offsetof(oxide::MeshVertex, normal))
+    .addAttribute(2, 0, VK_FORMAT_R32G32_SFLOAT,
+                  offsetof(oxide::MeshVertex, texCoord));
+```
 
 Vertex and index buffers upload through staging into device-local memory. For
 host-visible uniform or storage data, use `Buffer` directly:

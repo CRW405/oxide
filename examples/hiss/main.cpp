@@ -30,17 +30,17 @@ struct HissPushConstants {
 int main() {
 	// Library setup.
 	oxide::Application    app(800, 600, "Control Hiss Shader");
-	oxide::Window        &window = app.window();
-	oxide::VulkanDevice  &device = app.device();
+	oxide::Window        &window         = app.window();
+	oxide::VulkanDevice  &device         = app.device();
 	oxide::VulkanContext &vulkan_context = app.context();
 
 	// Reflection runs before the GPU resources because it supplies the
 	// descriptor set layout and push-constant range they must match.
-	oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
+	oxide::ShaderLibrary             shader_library(OXIDE_SHADER_DIR);
 	const oxide::GraphicsShaderFiles hiss_shaders = shader_library.graphics("hiss");
-	const oxide::ShaderReflection hiss_reflection =
+	const oxide::ShaderReflection    hiss_reflection =
 	    oxide::ShaderReflection::fromGraphics(hiss_shaders);
-	oxide::PipelineLayout pipeline_layout(device, hiss_reflection);
+	oxide::PipelineLayout     pipeline_layout(device, hiss_reflection);
 	const VkPushConstantRange hiss_push_range =
 	    hiss_reflection.pushConstantRanges().front();
 

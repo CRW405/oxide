@@ -126,8 +126,9 @@ readback. Vertex and index buffers use staging uploads into device-local
 memory. `Buffer::read()` copies results back after the device is idle.
 
 The project uses C++20, GLFW, Vulkan, `stb_image`/`stb_image_write`,
-`glslc` or `glslangValidator`, and a vendored copy of SPIRV-Reflect under
-`third_party/spirv-reflect/`.
+`tinyobjloader`, `cgltf`, `glslc` or `glslangValidator`, and a vendored copy of
+SPIRV-Reflect under `third_party/spirv-reflect/`. The public reader wrappers
+keep the parser APIs out of Oxide's headers.
 Examples keep GLSL in `examples/<name>/shaders`; CMake compiles it to SPIR-V
 next to the binary and defines `OXIDE_SHADER_DIR` and `OXIDE_ASSET_DIR`.
 
@@ -145,6 +146,8 @@ next to the binary and defines `OXIDE_SHADER_DIR` and `OXIDE_ASSET_DIR`.
   constants, pipeline configuration, and graphics and compute pipelines.
 - **Resources** — `include/oxide/vulkan/resources/` and `src/vulkan/resources/`
   contain buffers, textures, descriptors, and uniform-buffer helpers.
+- **Assets** — `include/oxide/assets/` and `src/assets/` contain CPU-side mesh
+  data and wrappers for OBJ and glTF geometry loading.
 - **Application** — `include/oxide/vulkan/application.hpp` and
   `src/vulkan/application.cpp` provide the high-level bootstrap.
 - **Examples** — each directory under `examples/` is a standalone program

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <oxide/assets/gltf_reader.hpp>
+#include <oxide/assets/mesh_data.hpp>
+#include <oxide/assets/obj_reader.hpp>
 #include <oxide/glfw/glfw_oxide.hpp>
 #include <oxide/tools/fps.hpp>
 #include <oxide/tools/log.hpp>

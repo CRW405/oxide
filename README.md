@@ -17,6 +17,7 @@ It handles the setup that most Vulkan programs need:
 - Multiple render targets (MRT) with per-attachment clears
 - Command buffers and frame synchronization
 - Vertex and index buffers
+- OBJ and glTF triangle-mesh loading
 - Texture loading and sampled image descriptor sets
 - Uniform buffers and uniform buffer descriptor sets
 - Pipeline layouts and graphics pipelines
@@ -30,7 +31,7 @@ While Oxide does a lot of the heavy lifting and provides some useful defaults,
 manual control is still recommended. Oxide is just intended to accelerate setup
 and allow for more rapid experimentation and prototyping.
 
-Oxide is built as the `oxide` library from `src/glfw`, `src/tools`,
+Oxide is built as the `oxide` library from `src/assets`, `src/glfw`, `src/tools`,
 and `src/vulkan`, with public headers under `include/oxide`. Programs that use
 it live under `examples/`, where each
 example is a standalone executable with its own `main.cpp` and `shaders/`
@@ -41,7 +42,8 @@ directory:
 - `examples/textured_quad` — Texture loading and sampled-image descriptors
 - `examples/animated_uniform` — Per-frame uniform-buffer updates
 - `examples/sierpinski` — A fragment-shader fractal driven by push constants
-- `examples/hiss` — Animated cube using a per-frame UBO and push constants meant to copy Control's hiss liquidy effect. Smoke effect coming soon.
+- `examples/hiss` — Animated glTF object using a per-frame UBO and push constants for the hiss shader
+- `examples/model_loading` — Load and render OBJ and glTF triangle meshes side by side
 - `examples/multiple_pipelines` — Two graphics shader pairs plus a compute pass sharing one device and frame
 - `examples/offscreen_png` — Headless rendering into an offscreen image and writing it to a PNG
 - `examples/render_to_texture` — Sampling an offscreen render target in a second pass
@@ -60,8 +62,9 @@ It is aimed at programs that need direct control over:
 - Synchronization
 - Swapchain behavior
 
-It is not a complete game engine. It does not provide scenes, materials,
-asset loading, cameras, or an entity system. (yet (maybe))
+It is not a complete game engine. The OBJ and glTF readers load static triangle
+geometry only; Oxide does not provide scenes, materials, cameras, or an entity
+system.
 
 Detailed diagnostics, backend architecture, file mapping, and graphics/Vulkan background are in [NOTES.md](NOTES.md).
 Cheatsheet available in [CHEATSHEET.md](CHEATSHEET.md).
@@ -72,6 +75,10 @@ Cheatsheet available in [CHEATSHEET.md](CHEATSHEET.md).
 cmake -S . -B build
 cmake --build build -j
 ```
+
+The build requires Vulkan, GLFW, `stb_image`, `stb_image_write`, `tinyobjloader`,
+and `cgltf`; building the examples also requires `cglm` and a GLSL-to-SPIR-V
+compiler.
 
 This builds the `oxide` library and every example. Run an example directly:
 
@@ -111,11 +118,6 @@ Disabling validation skips the validation layer and debug messenger. Disabling
 logging makes the `OXIDE_LOG_*` statements discard their output; their
 arguments are still evaluated.
 
-## TODO
-
-- OBJ reader
-- GLTF reader
-
 ### Future Work
 
 - Ray Tracing
@@ -129,13 +131,17 @@ A program using Oxide normally follows this order:
 
 1. Include `<oxide/oxide.hpp>` and create an `Application` (or create the GLFW, window, device, and context
    objects individually when custom ownership is needed).
-2. Create meshes, textures, uniform buffers, descriptor sets, pipeline layouts, and pipelines.
-3. Start the render loop.
-4. Poll window events and read input.
-5. Call `beginFrameScope(clearColor)`.
-6. Set the viewport and scissor, bind pipelines and buffers, then issue draw
+2. Load static geometry with `ObjReader::load(path)` or `GltfReader::load(path)`, then upload each
+   returned `MeshData` with `Mesh(device, data.vertices, data.indices)`. Readers return one mesh per
+   OBJ shape or glTF scene-node primitive; use the `MeshVertex` position, normal, and texture-coordinate
+   fields to configure vertex input.
+3. Create textures, uniform buffers, descriptor sets, pipeline layouts, and pipelines.
+4. Start the render loop.
+5. Poll window events and read input.
+6. Call `beginFrameScope(clearColor)`.
+7. Set the viewport and scissor, bind pipelines and buffers, then issue draw
    commands. The frame scope ends the render pass and submits on scope exit.
-7. Declare a `DeviceIdleGuard` after the GPU resources when using the
+8. Declare a `DeviceIdleGuard` after the GPU resources when using the
     lower-level ownership API so the device becomes
     idle before those resources are destroyed.
 
