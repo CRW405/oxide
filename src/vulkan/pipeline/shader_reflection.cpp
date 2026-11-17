@@ -146,8 +146,8 @@ ShaderReflection ShaderReflection::fromModule(const std::string &path) {
 		// Use the same merge path as fromFiles so a single module gets the same
 		// normalization and descriptor-set construction.
 		ShaderReflection reflection;
-		reflection.descriptors_ = std::move(descriptors);
-		reflection.push_constants_ = std::move(push_constants);
+		reflection.descriptors_              = std::move(descriptors);
+		reflection.push_constants_           = std::move(push_constants);
 		reflection.specialization_constants_ = std::move(specialization_constants);
 		reflection.rebuildDescriptorSets();
 		return reflection;
@@ -262,13 +262,13 @@ void ShaderReflection::rebuildDescriptorSets() {
 	for (const ReflectedPushConstant &constant : push_constants_) {
 		if (!merged.empty()) {
 			ReflectedPushConstant &previous = merged.back();
-			const std::uint64_t previous_end =
+			const std::uint64_t    previous_end =
 			    static_cast<std::uint64_t>(previous.offset) + previous.size;
 			if (constant.offset < previous_end) {
 				const std::uint64_t end =
 				    std::max(previous_end,
 				             static_cast<std::uint64_t>(constant.offset) + constant.size);
-				previous.size       = static_cast<std::uint32_t>(end - previous.offset);
+				previous.size = static_cast<std::uint32_t>(end - previous.offset);
 				previous.stageFlags |= constant.stageFlags;
 				continue;
 			}
@@ -281,7 +281,7 @@ void ShaderReflection::rebuildDescriptorSets() {
 	push_constant_ranges_.reserve(push_constants_.size());
 	for (const ReflectedPushConstant &constant : push_constants_) {
 		push_constant_ranges_.push_back(VkPushConstantRange{
-		    constant.stageFlags, constant.offset, constant.size});
+		    constant.stageFlags, constant.offset, constant.size });
 	}
 
 	descriptor_set_count_ = 0;

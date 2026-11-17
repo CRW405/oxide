@@ -45,21 +45,21 @@ std::array<float, 3> transformNormal(const float *matrix, const std::array<float
 	const float a00 = matrix[0], a01 = matrix[4], a02 = matrix[8];
 	const float a10 = matrix[1], a11 = matrix[5], a12 = matrix[9];
 	const float a20 = matrix[2], a21 = matrix[6], a22 = matrix[10];
-	const float c00 = a11 * a22 - a12 * a21;
-	const float c01 = a12 * a20 - a10 * a22;
-	const float c02 = a10 * a21 - a11 * a20;
-	const float c10 = a02 * a21 - a01 * a22;
-	const float c11 = a00 * a22 - a02 * a20;
-	const float c12 = a01 * a20 - a00 * a21;
-	const float c20 = a01 * a12 - a02 * a11;
-	const float c21 = a02 * a10 - a00 * a12;
-	const float c22 = a00 * a11 - a01 * a10;
+	const float c00         = a11 * a22 - a12 * a21;
+	const float c01         = a12 * a20 - a10 * a22;
+	const float c02         = a10 * a21 - a11 * a20;
+	const float c10         = a02 * a21 - a01 * a22;
+	const float c11         = a00 * a22 - a02 * a20;
+	const float c12         = a01 * a20 - a00 * a21;
+	const float c20         = a01 * a12 - a02 * a11;
+	const float c21         = a02 * a10 - a00 * a12;
+	const float c22         = a00 * a11 - a01 * a10;
 	const float determinant = a00 * c00 + a01 * c01 + a02 * c02;
 	if (std::abs(determinant) <= std::numeric_limits<float>::epsilon()) {
 		throw runtimeError("glTF '" + path + "' has a singular transform for a mesh with normals");
 	}
 
-	const float sign = determinant < 0.0f ? -1.0f : 1.0f;
+	const float          sign = determinant < 0.0f ? -1.0f : 1.0f;
 	std::array<float, 3> transformed{
 		sign * (c00 * normal[0] + c01 * normal[1] + c02 * normal[2]),
 		sign * (c10 * normal[0] + c11 * normal[1] + c12 * normal[2]),
@@ -78,8 +78,8 @@ std::array<float, 3> transformNormal(const float *matrix, const std::array<float
 }
 
 std::string meshName(const cgltf_node *node, const cgltf_mesh *mesh, cgltf_size primitiveIndex) {
-	std::string name = node->name != nullptr ? node->name :
-	                   mesh->name != nullptr ? mesh->name : "mesh";
+	std::string name = node->name != nullptr ? node->name : mesh->name != nullptr ? mesh->name
+	                                                                              : "mesh";
 	name += "/primitive_" + std::to_string(primitiveIndex);
 	return name;
 }
@@ -99,7 +99,7 @@ void appendPrimitive(
 	}
 
 	const cgltf_accessor *positions = nullptr;
-	const cgltf_accessor *normals = nullptr;
+	const cgltf_accessor *normals   = nullptr;
 	const cgltf_accessor *texCoords = nullptr;
 	for (cgltf_size i = 0; i < primitive.attributes_count; ++i) {
 		const cgltf_attribute &attribute = primitive.attributes[i];
@@ -113,7 +113,7 @@ void appendPrimitive(
 	}
 
 	const std::vector<float> positionValues = unpackAttribute(positions, 3, path);
-	const cgltf_size vertexCount = positions->count;
+	const cgltf_size         vertexCount    = positions->count;
 	if (vertexCount == 0 || vertexCount > std::numeric_limits<std::uint32_t>::max()) {
 		throw runtimeError("glTF '" + path + "' has an invalid vertex count");
 	}
@@ -123,7 +123,7 @@ void appendPrimitive(
 	if (texCoords != nullptr && texCoords->count != vertexCount) {
 		throw runtimeError("glTF '" + path + "' has mismatched texture-coordinate and position counts");
 	}
-	const std::vector<float> normalValues = normals == nullptr ? std::vector<float>{} : unpackAttribute(normals, 3, path);
+	const std::vector<float> normalValues   = normals == nullptr ? std::vector<float>{} : unpackAttribute(normals, 3, path);
 	const std::vector<float> texCoordValues = texCoords == nullptr ? std::vector<float>{} : unpackAttribute(texCoords, 2, path);
 
 	MeshData mesh;
@@ -137,7 +137,7 @@ void appendPrimitive(
 		worldTransform[0] = worldTransform[5] = worldTransform[10] = worldTransform[15] = 1.0f;
 	}
 	for (cgltf_size i = 0; i < vertexCount; ++i) {
-		MeshVertex &vertex = mesh.vertices[i];
+		MeshVertex                &vertex = mesh.vertices[i];
 		const std::array<float, 3> position{
 			positionValues[i * 3],
 			positionValues[i * 3 + 1],
@@ -147,11 +147,11 @@ void appendPrimitive(
 		if (normals != nullptr) {
 			vertex.normal = transformNormal(
 			    worldTransform.data(),
-			    {normalValues[i * 3], normalValues[i * 3 + 1], normalValues[i * 3 + 2]},
+			    { normalValues[i * 3], normalValues[i * 3 + 1], normalValues[i * 3 + 2] },
 			    path);
 		}
 		if (texCoords != nullptr) {
-			vertex.texCoord = {texCoordValues[i * 2], texCoordValues[i * 2 + 1]};
+			vertex.texCoord = { texCoordValues[i * 2], texCoordValues[i * 2 + 1] };
 		}
 	}
 
@@ -203,8 +203,8 @@ void appendNode(const cgltf_node *node, const std::string &path, std::vector<Mes
 
 std::vector<MeshData> GltfReader::load(const std::string &path) {
 	cgltf_options options{};
-	cgltf_data *rawData = nullptr;
-	cgltf_result result = cgltf_parse_file(&options, path.c_str(), &rawData);
+	cgltf_data   *rawData = nullptr;
+	cgltf_result  result  = cgltf_parse_file(&options, path.c_str(), &rawData);
 	if (result != cgltf_result_success) {
 		throw runtimeError("failed to parse glTF '" + path + "' (error " + std::to_string(result) + ")");
 	}
@@ -219,7 +219,7 @@ std::vector<MeshData> GltfReader::load(const std::string &path) {
 	}
 
 	std::vector<MeshData> meshes;
-	const cgltf_scene *scene = data->scene;
+	const cgltf_scene    *scene = data->scene;
 	if (scene == nullptr && data->scenes_count != 0) {
 		scene = &data->scenes[0];
 	}

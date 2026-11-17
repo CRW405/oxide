@@ -5,5 +5,5 @@
 layout(local_size_x = 1) in;
 
 void main() {
-    // Replace this with a simulation buffer and descriptors in a real engine.
+	// Replace this with a simulation buffer and descriptors in a real engine.
 }

@@ -1,6 +1,6 @@
-#include <oxide/vulkan/frame/vulkan_context.hpp>
 #include <oxide/tools/log.hpp>
 #include <oxide/vulkan/core/vk_error.hpp>
+#include <oxide/vulkan/frame/vulkan_context.hpp>
 
 #include <algorithm>
 #include <limits>
@@ -210,7 +210,7 @@ void VulkanContext::createSwapchain() {
 		bool found_transparent_mode = false;
 		for (VkCompositeAlphaFlagBitsKHR mode : transparent_modes) {
 			if ((support.capabilities.supportedCompositeAlpha & mode) != 0) {
-				composite_alpha         = mode;
+				composite_alpha        = mode;
 				found_transparent_mode = true;
 				break;
 			}
@@ -600,11 +600,11 @@ bool VulkanContext::removeSwapchainRecreatedCallback(SwapchainCallbackId id) noe
 void VulkanContext::notifySwapchainRecreated(bool renderPassChanged) {
 	++swapchain_generation_;
 	const SwapchainRecreationInfo info{
-	    render_pass_,
-	    swapchain_format_,
-	    swapchain_extent_,
-	    renderPassChanged,
-	    swapchain_generation_,
+		render_pass_,
+		swapchain_format_,
+		swapchain_extent_,
+		renderPassChanged,
+		swapchain_generation_,
 	};
 
 	if (swapchain_recreated_callback_) {
@@ -713,8 +713,8 @@ void VulkanContext::createRenderPass() {
 		resolve_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
 		resolve_attachment.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-		resolve_reference.attachment = attachment_count;
-		resolve_reference.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		resolve_reference.attachment    = attachment_count;
+		resolve_reference.layout        = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		attachments[attachment_count++] = resolve_attachment;
 	}
 
@@ -785,7 +785,7 @@ void VulkanContext::createFramebuffers() {
 	}
 	swapchain_framebuffers_.resize(swapchain_image_views_.size());
 	for (size_t i = 0; i < swapchain_image_views_.size(); i++) {
-		VkImageView attachments[3]{};
+		VkImageView   attachments[3]{};
 		std::uint32_t attachment_count = 0;
 		if (multisampled) {
 			attachments[attachment_count++] = color_images_[i].view;
@@ -807,4 +807,4 @@ void VulkanContext::createFramebuffers() {
 	}
 }
 
-}
+} // namespace oxide

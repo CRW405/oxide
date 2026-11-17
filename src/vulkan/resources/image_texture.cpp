@@ -1,15 +1,15 @@
-#include <oxide/vulkan/resources/image_texture.hpp>
-#include <oxide/vulkan/resources/buffer.hpp>
 #include <oxide/tools/log.hpp>
 #include <oxide/vulkan/core/vk_error.hpp>
+#include <oxide/vulkan/resources/buffer.hpp>
+#include <oxide/vulkan/resources/image_texture.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <stdexcept>
-#include <cmath>
-#include <algorithm>
 
 namespace oxide {
 
@@ -93,14 +93,14 @@ void copyBufferToImage(VulkanDevice &device, VkBuffer buffer, VkImage image, uin
 } // namespace
 
 ImageTexture::ImageTexture(VulkanDevice &device, const std::string &imagePath, TextureConfig config) : device_(device) {
-	VkImage image = VK_NULL_HANDLE;
+	VkImage                image = VK_NULL_HANDLE;
 	DeviceMemoryAllocation allocation{};
-	VkImageView image_view = VK_NULL_HANDLE;
-	VkSampler sampler = VK_NULL_HANDLE;
-	int width = 0;
-	int height = 0;
-	int channels = 0;
-	stbi_uc *pixels = stbi_load(imagePath.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+	VkImageView            image_view = VK_NULL_HANDLE;
+	VkSampler              sampler    = VK_NULL_HANDLE;
+	int                    width      = 0;
+	int                    height     = 0;
+	int                    channels   = 0;
+	stbi_uc               *pixels     = stbi_load(imagePath.c_str(), &width, &height, &channels, STBI_rgb_alpha);
 	if (pixels == nullptr) {
 		const char *reason = stbi_failure_reason();
 		throw runtimeError("failed to load texture image '" + imagePath + "'" +
@@ -128,10 +128,10 @@ ImageTexture::ImageTexture(VulkanDevice &device, const std::string &imagePath, T
 		imageInfo.extent.depth  = 1;
 		VkFormatProperties format_properties{};
 		vkGetPhysicalDeviceFormatProperties(device_.physicalDevice(), config.format, &format_properties);
-		const bool can_blit = (format_properties.optimalTilingFeatures &
-		                       (VK_FORMAT_FEATURE_BLIT_SRC_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT)) ==
-		                      (VK_FORMAT_FEATURE_BLIT_SRC_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT);
-		mip_levels_ = can_blit ? static_cast<std::uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1 : 1;
+		const bool can_blit     = (format_properties.optimalTilingFeatures &
+		                           (VK_FORMAT_FEATURE_BLIT_SRC_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT)) ==
+		                          (VK_FORMAT_FEATURE_BLIT_SRC_BIT | VK_FORMAT_FEATURE_BLIT_DST_BIT);
+		mip_levels_             = can_blit ? static_cast<std::uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1 : 1;
 		imageInfo.mipLevels     = mip_levels_;
 		imageInfo.arrayLayers   = 1;
 		imageInfo.format        = config.format;
@@ -146,7 +146,7 @@ ImageTexture::ImageTexture(VulkanDevice &device, const std::string &imagePath, T
 		VkMemoryRequirements memRequirements;
 		vkGetImageMemoryRequirements(device_.device(), image, &memRequirements);
 		allocation = device_.allocateMemory(memRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		handle_ = device_.resources().registerImage(
+		handle_    = device_.resources().registerImage(
 		    { image, allocation.memory, allocation.offset, allocation.size, VK_NULL_HANDLE, VK_NULL_HANDLE });
 		checkVk(vkBindImageMemory(device_.device(), image, allocation.memory, allocation.offset),
 		        "bind texture image memory");
@@ -159,50 +159,50 @@ ImageTexture::ImageTexture(VulkanDevice &device, const std::string &imagePath, T
 		                  static_cast<uint32_t>(width),
 		                  static_cast<uint32_t>(height));
 		// Generate the complete mip chain with linear blits when supported.
-		VkCommandBuffer command = device_.beginSingleTimeCommands();
+		VkCommandBuffer      command = device_.beginSingleTimeCommands();
 		VkImageMemoryBarrier barrier{};
-		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		barrier.image = image;
-		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.image                           = image;
+		barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+		barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
 		barrier.subresourceRange.baseArrayLayer = 0;
-		barrier.subresourceRange.layerCount = 1;
-		barrier.subresourceRange.levelCount = 1;
+		barrier.subresourceRange.layerCount     = 1;
+		barrier.subresourceRange.levelCount     = 1;
 		int mip_width = width, mip_height = height;
 		for (std::uint32_t level = 1; level < mip_levels_; ++level) {
 			barrier.subresourceRange.baseMipLevel = level - 1;
-			barrier.subresourceRange.levelCount = 1;
-			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-			barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-			barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			barrier.subresourceRange.levelCount   = 1;
+			barrier.oldLayout                     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			barrier.newLayout                     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			barrier.srcAccessMask                 = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask                 = VK_ACCESS_TRANSFER_READ_BIT;
 			vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
 			                     0, nullptr, 0, nullptr, 1, &barrier);
 			VkImageBlit blit{};
 			blit.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, level - 1, 0, 1 };
 			blit.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, level, 0, 1 };
-			blit.srcOffsets[1] = { mip_width, mip_height, 1 };
-			mip_width = std::max(1, mip_width / 2);
-			mip_height = std::max(1, mip_height / 2);
-			blit.dstOffsets[1] = { mip_width, mip_height, 1 };
+			blit.srcOffsets[1]  = { mip_width, mip_height, 1 };
+			mip_width           = std::max(1, mip_width / 2);
+			mip_height          = std::max(1, mip_height / 2);
+			blit.dstOffsets[1]  = { mip_width, mip_height, 1 };
 			vkCmdBlitImage(command, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 			               image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
 			               VK_FILTER_LINEAR);
 		}
 		barrier.subresourceRange.baseMipLevel = mip_levels_ - 1;
-		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		barrier.oldLayout                     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		barrier.newLayout                     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		barrier.srcAccessMask                 = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask                 = VK_ACCESS_SHADER_READ_BIT;
 		vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
 		                     0, nullptr, 0, nullptr, 1, &barrier);
 		for (std::uint32_t level = 0; level + 1 < mip_levels_; ++level) {
 			barrier.subresourceRange.baseMipLevel = level;
-			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			barrier.oldLayout                     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			barrier.newLayout                     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.srcAccessMask                 = VK_ACCESS_TRANSFER_READ_BIT;
+			barrier.dstAccessMask                 = VK_ACCESS_SHADER_READ_BIT;
 			vkCmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
 			                     0, nullptr, 0, nullptr, 1, &barrier);
 		}
@@ -274,10 +274,9 @@ void ImageTexture::destroyResources() noexcept {
 	if (device_.device() == VK_NULL_HANDLE) {
 		return;
 	}
-	const auto *resource = device_.resources().image(handle_);
+	const auto                  *resource = device_.resources().image(handle_);
 	const DeviceMemoryAllocation allocation =
-	    resource == nullptr ? DeviceMemoryAllocation{} :
-	                          DeviceMemoryAllocation{resource->memory, resource->offset, resource->size, 0, nullptr};
+	    resource == nullptr ? DeviceMemoryAllocation{} : DeviceMemoryAllocation{ resource->memory, resource->offset, resource->size, 0, nullptr };
 	device_.resources().unregisterImage(handle_);
 	handle_ = {};
 	if (allocation.memory != VK_NULL_HANDLE) {

@@ -29,16 +29,18 @@ class ResourcePool {
 		if (slots_.size() > index_mask) {
 			throw std::length_error("resource pool exhausted: maximum of 65536 live slots");
 		}
-		slots_.push_back(Slot{std::move(value), 1});
+		slots_.push_back(Slot{ std::move(value), 1 });
 		return ResourceHandle(makeValue(static_cast<std::uint32_t>(slots_.size() - 1), 1));
 	}
 
 	void destroy(ResourceHandle handle) noexcept {
 		Slot *slot = findSlot(handle);
-		if (slot == nullptr) return;
+		if (slot == nullptr)
+			return;
 		slot->value.reset();
 		++slot->generation;
-		if (slot->generation == 0) slot->generation = 1;
+		if (slot->generation == 0)
+			slot->generation = 1;
 	}
 
 	[[nodiscard]] T *get(ResourceHandle handle) noexcept {
@@ -54,7 +56,8 @@ class ResourcePool {
 	template <typename Function>
 	void forEach(Function &&function) noexcept {
 		for (auto &slot : slots_) {
-			if (slot.value.has_value()) function(*slot.value);
+			if (slot.value.has_value())
+				function(*slot.value);
 		}
 	}
 
@@ -62,14 +65,15 @@ class ResourcePool {
 		for (auto &slot : slots_) {
 			slot.value.reset();
 			++slot.generation;
-			if (slot.generation == 0) slot.generation = 1;
+			if (slot.generation == 0)
+				slot.generation = 1;
 		}
 	}
 
   private:
 	struct Slot {
 		std::optional<T> value;
-		std::uint16_t     generation = 1;
+		std::uint16_t    generation = 1;
 	};
 
 	static constexpr std::uint32_t index_bits = 16;
@@ -90,13 +94,15 @@ class ResourcePool {
 	}
 
 	Slot *findSlot(ResourceHandle handle) noexcept {
-		if (!handle.valid()) return nullptr;
+		if (!handle.valid())
+			return nullptr;
 		const std::uint32_t index = indexOf(handle);
 		return index < slots_.size() && slots_[index].generation == generationOf(handle) ? &slots_[index] : nullptr;
 	}
 
 	const Slot *findSlot(ResourceHandle handle) const noexcept {
-		if (!handle.valid()) return nullptr;
+		if (!handle.valid())
+			return nullptr;
 		const std::uint32_t index = indexOf(handle);
 		return index < slots_.size() && slots_[index].generation == generationOf(handle) ? &slots_[index] : nullptr;
 	}

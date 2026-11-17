@@ -27,7 +27,7 @@ class ImageTexture;
 class TextureDescriptorSet {
   public:
 	// Defaults used by the simple texture shader.
-	static constexpr std::uint32_t      DEFAULT_BINDING = 0;
+	static constexpr std::uint32_t      DEFAULT_BINDING     = 0;
 	static constexpr VkShaderStageFlags DEFAULT_STAGE_FLAGS = VK_SHADER_STAGE_FRAGMENT_BIT;
 	static constexpr VkDescriptorType   DEFAULT_DESCRIPTOR_TYPE =
 	    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -42,27 +42,27 @@ class TextureDescriptorSet {
 	// OffscreenTarget. The caller keeps both objects alive for as long as this
 	// descriptor set is used.
 	TextureDescriptorSet(
-	    VulkanDevice       &device,
-	    VkImageView         imageView,
-	    VkSampler           sampler,
-	    std::uint32_t       binding    = DEFAULT_BINDING,
-	    VkShaderStageFlags  stageFlags = DEFAULT_STAGE_FLAGS);
+	    VulkanDevice      &device,
+	    VkImageView        imageView,
+	    VkSampler          sampler,
+	    std::uint32_t      binding    = DEFAULT_BINDING,
+	    VkShaderStageFlags stageFlags = DEFAULT_STAGE_FLAGS);
 
 	// Allocate the set from a layout owned elsewhere. The reflected
 	// PipelineLayout::descriptorSetLayout(set) accessor is the usual source.
 	// The layout must already declare a combined image sampler at binding.
 	TextureDescriptorSet(
-	    VulkanDevice        &device,
-	    const ImageTexture  &texture,
+	    VulkanDevice         &device,
+	    const ImageTexture   &texture,
 	    VkDescriptorSetLayout layout,
-	    std::uint32_t        binding = DEFAULT_BINDING);
+	    std::uint32_t         binding = DEFAULT_BINDING);
 
 	TextureDescriptorSet(
-	    VulkanDevice        &device,
-	    VkImageView          imageView,
-	    VkSampler            sampler,
+	    VulkanDevice         &device,
+	    VkImageView           imageView,
+	    VkSampler             sampler,
 	    VkDescriptorSetLayout layout,
-	    std::uint32_t        binding = DEFAULT_BINDING);
+	    std::uint32_t         binding = DEFAULT_BINDING);
 
 	TextureDescriptorSet(const TextureDescriptorSet &)            = delete;
 	TextureDescriptorSet &operator=(const TextureDescriptorSet &) = delete;

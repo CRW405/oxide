@@ -266,13 +266,13 @@ ImageHandle OffscreenTarget::createImage(
 }
 
 void OffscreenTarget::createColorResources() {
-	const VkImageUsageFlags sampled_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-	                                        VK_IMAGE_USAGE_SAMPLED_BIT |
-	                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-	                                        config_.imageUsage;
-	const VkFormatFeatureFlags required = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
-	                                      VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-	                                      VK_FORMAT_FEATURE_TRANSFER_SRC_BIT;
+	const VkImageUsageFlags    sampled_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+	                                           VK_IMAGE_USAGE_SAMPLED_BIT |
+	                                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+	                                           config_.imageUsage;
+	const VkFormatFeatureFlags required      = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
+	                                           VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+	                                           VK_FORMAT_FEATURE_TRANSFER_SRC_BIT;
 
 	color_images_.reserve(color_formats_.size());
 	if (isMultisampled()) {
@@ -334,7 +334,7 @@ VkFormat OffscreenTarget::findDepthFormat() const {
 }
 
 void OffscreenTarget::createDepthResources() {
-	depth_format_ = findDepthFormat();
+	depth_format_             = findDepthFormat();
 	VkImageAspectFlags aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
 	if (hasStencilComponent(depth_format_)) {
 		aspect |= VK_IMAGE_ASPECT_STENCIL_BIT;
@@ -657,7 +657,7 @@ std::vector<std::uint8_t> OffscreenTarget::readPixels(std::uint32_t attachment) 
 	std::vector<std::uint8_t> initial(static_cast<std::size_t>(byte_count), 0);
 	Buffer                    readback(device_, initial.data(), byte_count, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
-	const VkImage image = colorImage(attachment);
+	const VkImage   image          = colorImage(attachment);
 	VkCommandBuffer command_buffer = device_.beginSingleTimeCommands();
 	imageBarrier(command_buffer,
 	             image,
@@ -726,8 +726,7 @@ void OffscreenTarget::releaseImage(ImageHandle &handle) noexcept {
 	}
 	const auto                  *resource = device_.resources().image(handle);
 	const DeviceMemoryAllocation allocation =
-	    resource == nullptr ? DeviceMemoryAllocation{} :
-	                          DeviceMemoryAllocation{ resource->memory, resource->offset, resource->size, 0, nullptr };
+	    resource == nullptr ? DeviceMemoryAllocation{} : DeviceMemoryAllocation{ resource->memory, resource->offset, resource->size, 0, nullptr };
 	device_.resources().unregisterImage(handle);
 	handle = {};
 	if (allocation.memory != VK_NULL_HANDLE) {

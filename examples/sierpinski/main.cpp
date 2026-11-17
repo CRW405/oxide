@@ -14,13 +14,13 @@ struct FractalSettings {
 int main() {
 	// High-level bootstrap.
 	oxide::Application    app(500, 500, "Sierpinski Triangle");
-	oxide::Window        &window = app.window();
-	oxide::VulkanDevice  &device = app.device();
+	oxide::Window        &window         = app.window();
+	oxide::VulkanDevice  &device         = app.device();
 	oxide::VulkanContext &vulkan_context = app.context();
 
 	// The fragment shader draws the entire fractal, so no vertex buffer is
 	// required. The vertex shader generates one oversized screen triangle.
-	oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
+	oxide::ShaderLibrary             shader_library(OXIDE_SHADER_DIR);
 	const oxide::GraphicsShaderFiles fractal_shaders =
 	    shader_library.graphics("sierpinski_triangle");
 	const oxide::ShaderReflection fractal_reflection =
@@ -28,7 +28,7 @@ int main() {
 
 	// Reflection finds the push-constant block and the fragment shader's
 	// specialization constant, so neither has to be duplicated by hand.
-	oxide::PipelineLayout pipeline_layout(device, fractal_reflection);
+	oxide::PipelineLayout     pipeline_layout(device, fractal_reflection);
 	const VkPushConstantRange fractal_push_range =
 	    fractal_reflection.pushConstantRanges().front();
 
@@ -86,7 +86,7 @@ int main() {
 			continue; // The swapchain is being recreated.
 		}
 		fractal_settings.aspect_ratio = static_cast<float>(vulkan_context.extent().width) /
-		                               static_cast<float>(vulkan_context.extent().height);
+		                                static_cast<float>(vulkan_context.extent().height);
 
 		// Bind the pipeline and update the fragment shader's parameters.
 		sierpinski_pipeline.bind(frame_scope.commandBuffer());

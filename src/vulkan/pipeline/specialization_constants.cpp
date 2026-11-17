@@ -37,8 +37,8 @@ SpecializationConstants &SpecializationConstants::setBytes(
 	const std::size_t padding   = (alignment - (data_.size() % alignment)) % alignment;
 	data_.insert(data_.end(), padding, std::byte{ 0 });
 
-	const auto offset = static_cast<std::uint32_t>(data_.size());
-	const auto *bytes = static_cast<const std::byte *>(data);
+	const auto  offset = static_cast<std::uint32_t>(data_.size());
+	const auto *bytes  = static_cast<const std::byte *>(data);
 	data_.insert(data_.end(), bytes, bytes + size);
 
 	entries_.push_back(VkSpecializationMapEntry{

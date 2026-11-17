@@ -1,5 +1,5 @@
-#include <oxide/vulkan/pipeline/shader_library.hpp>
 #include <oxide/vulkan/core/vk_error.hpp>
+#include <oxide/vulkan/pipeline/shader_library.hpp>
 
 #include <filesystem>
 

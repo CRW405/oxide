@@ -50,7 +50,7 @@ class Window {
 	Window(Window &&) noexcept;
 	Window &operator=(Window &&) noexcept;
 
-	[[nodiscard]] GLFWwindow   *handle() const noexcept { return window_; }
+	[[nodiscard]] GLFWwindow *handle() const noexcept { return window_; }
 
 	// Content size in screen coordinates. This is the same coordinate space as
 	// cursorPosition(), so cursor positions can be normalized by these values.
@@ -64,21 +64,21 @@ class Window {
 	// Wayland compositors do not expose global window coordinates; on Wayland
 	// this returns the last requested position instead.
 	[[nodiscard]] WindowPosition position() const noexcept;
-	void                       setPosition(WindowPosition position) noexcept;
-	[[nodiscard]] bool         hasGlobalPosition() const noexcept;
+	void                         setPosition(WindowPosition position) noexcept;
+	[[nodiscard]] bool           hasGlobalPosition() const noexcept;
 
-	[[nodiscard]] bool          shouldClose() const noexcept;
-	[[nodiscard]] bool          closeRequested() noexcept;
-	[[nodiscard]] bool          transparent() const noexcept;
-	void                        pollEvents() const noexcept;
-	[[nodiscard]] double        time() const noexcept;
+	[[nodiscard]] bool   shouldClose() const noexcept;
+	[[nodiscard]] bool   closeRequested() noexcept;
+	[[nodiscard]] bool   transparent() const noexcept;
+	void                 pollEvents() const noexcept;
+	[[nodiscard]] double time() const noexcept;
 	// Edge-triggered: true once per press (or release) since the last call to
 	// the matching function, and the event is consumed by that call.
-	[[nodiscard]] bool          keyPressed(int key) noexcept;
-	[[nodiscard]] bool          keyReleased(int key) noexcept;
+	[[nodiscard]] bool keyPressed(int key) noexcept;
+	[[nodiscard]] bool keyReleased(int key) noexcept;
 	// Level-triggered: true while the key is currently held down.
-	[[nodiscard]] bool          keyDown(int key) const noexcept;
-	[[nodiscard]] bool          mouseButtonDown(int button) const noexcept;
+	[[nodiscard]] bool keyDown(int key) const noexcept;
+	[[nodiscard]] bool mouseButtonDown(int button) const noexcept;
 
 	// Cursor position relative to the content area, in screen coordinates.
 	[[nodiscard]] MousePosition cursorPosition() const noexcept;

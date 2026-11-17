@@ -1,6 +1,6 @@
-#include <oxide/vulkan/frame/vulkan_context.hpp>
 #include <oxide/tools/log.hpp>
 #include <oxide/vulkan/core/vk_error.hpp>
+#include <oxide/vulkan/frame/vulkan_context.hpp>
 
 #include <algorithm>
 
@@ -174,8 +174,8 @@ void VulkanContext::beginRenderPass(const Frame &frame, std::array<float, 4> cle
 	// Clear values are indexed by attachment. With MSAA the resolve attachment
 	// sits between the color and depth attachments, so the depth clear must be
 	// placed after it rather than immediately after the color clear.
-	VkClearValue       clearValues[3]{};
-	std::uint32_t      clearValueCount = 0;
+	VkClearValue  clearValues[3]{};
+	std::uint32_t clearValueCount = 0;
 	std::copy(clearColor.begin(), clearColor.end(), clearValues[clearValueCount++].color.float32);
 	if (sample_count_ != VK_SAMPLE_COUNT_1_BIT) {
 		clearValues[clearValueCount++] = VkClearValue{};

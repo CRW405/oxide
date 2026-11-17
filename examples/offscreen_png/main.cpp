@@ -18,9 +18,9 @@ int main() {
 		oxide::VulkanDevice device("Offscreen PNG");
 
 		oxide::OffscreenTarget target(device, {
-		    .width  = 800,
-		    .height = 600,
-		});
+		                                          .width  = 800,
+		                                          .height = 600,
+		                                      });
 
 		oxide::VertexInputDescription vertex_input;
 		vertex_input.addBinding(0, sizeof(Vertex))
@@ -32,7 +32,7 @@ int main() {
 		pipeline_config.setVertexInput(vertex_input);
 		pipeline_config.setRenderPass(target.renderPass());
 
-		oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
+		oxide::ShaderLibrary             shader_library(OXIDE_SHADER_DIR);
 		const oxide::GraphicsShaderFiles triangle_shaders =
 		    shader_library.graphics("offscreen_png");
 		const oxide::ShaderReflection triangle_reflection =

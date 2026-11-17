@@ -640,15 +640,15 @@ typedef struct SpvReflectSpecializationConstant {
   // Will be 4 for 8/16/32-bit constants and 8 for 64-bit constants.
   uint32_t default_value_size;
 
-  // Pointer to the raw default value data.  
-  // The interpretation of this data depends on type_description->op:  
-  // - SpvOpSpecConstantTrue:  size = 4, data = uint32_t(1)  
-  // - SpvOpSpecConstantFalse: size = 4, data = uint32_t(0)  
-  // - SpvOpSpecConstant:      data contains the bit pattern of the default value  
+  // Pointer to the raw default value data.
+  // The interpretation of this data depends on type_description->op:
+  // - SpvOpSpecConstantTrue:  size = 4, data = uint32_t(1)
+  // - SpvOpSpecConstantFalse: size = 4, data = uint32_t(0)
+  // - SpvOpSpecConstant:      data contains the bit pattern of the default value
   //   * The type will be a scalar integer or float.
-  //   * Types 32 bits wide or smaller take one word.  
-  //   * Larger types take multiple words, with low-order words appearing first.  
-  void* default_value;  
+  //   * Types 32 bits wide or smaller take one word.
+  //   * Larger types take multiple words, with low-order words appearing first.
+  void* default_value;
 } SpvReflectSpecializationConstant;
 
 /*! @struct SpvReflectShaderModule

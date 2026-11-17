@@ -8,10 +8,11 @@ layout(binding = 0) uniform CameraUniforms {
 	mat4 model;
 	mat4 view;
 	mat4 projection;
-} camera;
+}
+camera;
 
 void main() {
 	vec4 viewPosition = camera.view * camera.model * vec4(inPosition, 1.0);
-	fragmentNormal = mat3(camera.view * camera.model) * inNormal;
-	gl_Position = camera.projection * viewPosition;
+	fragmentNormal    = mat3(camera.view * camera.model) * inNormal;
+	gl_Position       = camera.projection * viewPosition;
 }

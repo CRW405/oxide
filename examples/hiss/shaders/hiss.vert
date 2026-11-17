@@ -14,7 +14,8 @@ layout(binding = 0) uniform CameraUniforms {
 	mat4 model;
 	mat4 view;
 	mat4 projection;
-} camera;
+}
+camera;
 
 void main() {
 	fragmentColor = inColor;

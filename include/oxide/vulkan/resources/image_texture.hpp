@@ -2,19 +2,19 @@
 
 #include <vulkan/vulkan.h>
 
-#include <string>
 #include <cstdint>
+#include <string>
 
 #include <oxide/vulkan/device/vulkan_device.hpp>
 
 namespace oxide {
 
 struct TextureConfig {
-	VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
-	VkFilter minFilter = VK_FILTER_LINEAR;
-	VkFilter magFilter = VK_FILTER_LINEAR;
+	VkFormat             format      = VK_FORMAT_R8G8B8A8_SRGB;
+	VkFilter             minFilter   = VK_FILTER_LINEAR;
+	VkFilter             magFilter   = VK_FILTER_LINEAR;
 	VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	bool anisotropy = true;
+	bool                 anisotropy  = true;
 };
 
 class ImageTexture {
@@ -40,9 +40,9 @@ class ImageTexture {
   private:
 	void destroyResources() noexcept;
 
-	VulkanDevice  &device_;
-	std::uint32_t  mip_levels_ = 1;
-	ImageHandle    handle_{};
+	VulkanDevice &device_;
+	std::uint32_t mip_levels_ = 1;
+	ImageHandle   handle_{};
 };
 
 } // namespace oxide

@@ -14,8 +14,8 @@ struct MeshVertex {
 };
 
 struct MeshData {
-	std::string               name;
-	std::vector<MeshVertex>   vertices;
+	std::string                name;
+	std::vector<MeshVertex>    vertices;
 	std::vector<std::uint32_t> indices;
 };
 

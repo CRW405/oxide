@@ -5,8 +5,8 @@
 namespace oxide {
 
 VertexInputDescription &VertexInputDescription::addBinding(
-    std::uint32_t binding,
-    std::uint32_t stride,
+    std::uint32_t     binding,
+    std::uint32_t     stride,
     VkVertexInputRate inputRate) {
 	bindings.push_back({ binding, stride, inputRate });
 	return *this;
@@ -15,7 +15,7 @@ VertexInputDescription &VertexInputDescription::addBinding(
 VertexInputDescription &VertexInputDescription::addAttribute(
     std::uint32_t location,
     std::uint32_t binding,
-    VkFormat format,
+    VkFormat      format,
     std::uint32_t offset) {
 	attributes.push_back({ location, binding, format, offset });
 	return *this;
@@ -123,8 +123,8 @@ void PipelineConfigInfo::refreshInternalPointers() noexcept {
 		colorBlendInfo.attachmentCount = static_cast<std::uint32_t>(colorBlendAttachments.size());
 		colorBlendInfo.pAttachments    = colorBlendAttachments.data();
 	}
-	dynamicStateInfo.dynamicStateCount = static_cast<std::uint32_t>(dynamicStates.size());
-	dynamicStateInfo.pDynamicStates    = dynamicStates.data();
+	dynamicStateInfo.dynamicStateCount         = static_cast<std::uint32_t>(dynamicStates.size());
+	dynamicStateInfo.pDynamicStates            = dynamicStates.data();
 	vertexInputInfo.pVertexBindingDescriptions = vertexBindings_.data();
 	vertexInputInfo.vertexBindingDescriptionCount =
 	    static_cast<std::uint32_t>(vertexBindings_.size());
@@ -135,7 +135,7 @@ void PipelineConfigInfo::refreshInternalPointers() noexcept {
 
 PipelineConfigInfo &PipelineConfigInfo::setVertexInput(
     const VertexInputDescription &description) {
-	vertexBindings_ = description.bindings;
+	vertexBindings_   = description.bindings;
 	vertexAttributes_ = description.attributes;
 	refreshInternalPointers();
 	return *this;

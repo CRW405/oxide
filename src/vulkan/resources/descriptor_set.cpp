@@ -1,6 +1,6 @@
-#include <oxide/vulkan/resources/descriptor_set.hpp>
 #include <oxide/tools/log.hpp>
 #include <oxide/vulkan/core/vk_error.hpp>
+#include <oxide/vulkan/resources/descriptor_set.hpp>
 
 #include <stdexcept>
 #include <vector>
@@ -8,7 +8,7 @@
 namespace oxide {
 
 DescriptorSetLayout::DescriptorSetLayout(
-    VulkanDevice &device,
+    VulkanDevice                            &device,
     std::initializer_list<DescriptorBinding> bindings)
     : device_(device) {
 	std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
@@ -24,7 +24,7 @@ DescriptorSetLayout::DescriptorSetLayout(
 
 	checkVk(vkCreateDescriptorSetLayout(device_.device(), &createInfo, nullptr, &layout_),
 	        "create descriptor set layout");
-	resource_handle_ = device_.resources().registerDescriptorLayout({layout_});
+	resource_handle_ = device_.resources().registerDescriptorLayout({ layout_ });
 }
 
 DescriptorSetLayout::DescriptorSetLayout(VulkanDevice &device, const DescriptorBinding &binding)
@@ -38,9 +38,9 @@ DescriptorSetLayout::~DescriptorSetLayout() {
 }
 
 DescriptorPool::DescriptorPool(
-    VulkanDevice                                &device,
+    VulkanDevice                               &device,
     std::initializer_list<VkDescriptorPoolSize> sizes,
-    std::uint32_t                                maxSets)
+    std::uint32_t                               maxSets)
     : device_(device) {
 	if (sizes.size() == 0) {
 		throw invalidArgument("descriptor pool requires at least one descriptor size");
@@ -58,15 +58,18 @@ DescriptorPool::DescriptorPool(
 
 	checkVk(vkCreateDescriptorPool(device_.device(), &createInfo, nullptr, &pool_),
 	        "create descriptor pool");
-	resource_handle_ = device_.resources().registerDescriptorPool({pool_});
+	resource_handle_ = device_.resources().registerDescriptorPool({ pool_ });
 }
 
 DescriptorPool::DescriptorPool(
-    VulkanDevice   &device,
+    VulkanDevice    &device,
     VkDescriptorType type,
     std::uint32_t    descriptorCount,
     std::uint32_t    maxSets)
-    : DescriptorPool(device, { { type, descriptorCount } }, maxSets) {}
+    : DescriptorPool(device, {
+                                 { type, descriptorCount }
+},
+                     maxSets) {}
 
 DescriptorPool::~DescriptorPool() {
 	if (pool_ != VK_NULL_HANDLE && device_.device() != VK_NULL_HANDLE) {

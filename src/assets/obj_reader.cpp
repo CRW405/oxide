@@ -51,10 +51,10 @@ void readObjAttribute(
 std::vector<MeshData> ObjReader::load(const std::string &path) {
 	tinyobj::attrib_t                attributes;
 	std::vector<tinyobj::shape_t>    shapes;
-	std::vector<tinyobj::material_t>  materials;
+	std::vector<tinyobj::material_t> materials;
 	std::string                      warning;
 	std::string                      error;
-	const std::string materialDirectory = std::filesystem::path(path).parent_path().string();
+	const std::string                materialDirectory = std::filesystem::path(path).parent_path().string();
 
 	if (!tinyobj::LoadObj(
 	        &attributes,
@@ -87,7 +87,7 @@ std::vector<MeshData> ObjReader::load(const std::string &path) {
 		std::unordered_map<ObjVertexKey, std::uint32_t, ObjVertexKeyHash> vertexIndices;
 
 		for (const tinyobj::index_t &index : shape.mesh.indices) {
-			const ObjVertexKey key{index.vertex_index, index.normal_index, index.texcoord_index};
+			const ObjVertexKey key{ index.vertex_index, index.normal_index, index.texcoord_index };
 			auto [it, inserted] = vertexIndices.try_emplace(
 			    key, static_cast<std::uint32_t>(mesh.vertices.size()));
 			if (inserted) {

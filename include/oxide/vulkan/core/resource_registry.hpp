@@ -45,13 +45,13 @@ class ResourceRegistry {
 	void unregisterBuffer(BufferHandle handle) noexcept {
 		if (device_ != VK_NULL_HANDLE) {
 			if (auto *resource = buffers_.get(handle); resource != nullptr &&
-			    resource->buffer != VK_NULL_HANDLE) {
+			                                           resource->buffer != VK_NULL_HANDLE) {
 				vkDestroyBuffer(device_, resource->buffer, nullptr);
 			}
 		}
 		buffers_.destroy(handle);
 	}
-	[[nodiscard]] BufferResource *buffer(BufferHandle handle) noexcept { return buffers_.get(handle); }
+	[[nodiscard]] BufferResource       *buffer(BufferHandle handle) noexcept { return buffers_.get(handle); }
 	[[nodiscard]] const BufferResource *buffer(BufferHandle handle) const noexcept {
 		return buffers_.get(handle);
 	}
@@ -75,7 +75,7 @@ class ResourceRegistry {
 		}
 		images_.destroy(handle);
 	}
-	[[nodiscard]] ImageResource *image(ImageHandle handle) noexcept { return images_.get(handle); }
+	[[nodiscard]] ImageResource       *image(ImageHandle handle) noexcept { return images_.get(handle); }
 	[[nodiscard]] const ImageResource *image(ImageHandle handle) const noexcept {
 		return images_.get(handle);
 	}
@@ -86,7 +86,7 @@ class ResourceRegistry {
 	void unregisterRenderPass(RenderPassHandle handle) noexcept {
 		if (device_ != VK_NULL_HANDLE) {
 			if (auto *resource = render_passes_.get(handle); resource != nullptr &&
-			    resource->render_pass != VK_NULL_HANDLE) {
+			                                                 resource->render_pass != VK_NULL_HANDLE) {
 				vkDestroyRenderPass(device_, resource->render_pass, nullptr);
 			}
 		}
@@ -105,7 +105,7 @@ class ResourceRegistry {
 	void unregisterFramebuffer(FramebufferHandle handle) noexcept {
 		if (device_ != VK_NULL_HANDLE) {
 			if (auto *resource = framebuffers_.get(handle); resource != nullptr &&
-			    resource->framebuffer != VK_NULL_HANDLE) {
+			                                                resource->framebuffer != VK_NULL_HANDLE) {
 				vkDestroyFramebuffer(device_, resource->framebuffer, nullptr);
 			}
 		}
@@ -137,7 +137,8 @@ class ResourceRegistry {
 	}
 	void unregisterShader(ShaderHandle handle) noexcept {
 		auto *resource = shaders_.get(handle);
-		if (resource == nullptr) return;
+		if (resource == nullptr)
+			return;
 		if (resource->references > 1) {
 			--resource->references;
 			return;
@@ -145,19 +146,22 @@ class ResourceRegistry {
 		if (device_ != VK_NULL_HANDLE && resource->module != VK_NULL_HANDLE) {
 			vkDestroyShaderModule(device_, resource->module, nullptr);
 		}
-		if (!resource->key.empty()) shader_keys_.erase(resource->key);
+		if (!resource->key.empty())
+			shader_keys_.erase(resource->key);
 		shaders_.destroy(handle);
 	}
 	[[nodiscard]] ShaderResource *shader(ShaderHandle handle) noexcept { return shaders_.get(handle); }
-	[[nodiscard]] ShaderHandle findShader(const std::string &key) const noexcept {
+	[[nodiscard]] ShaderHandle    findShader(const std::string &key) const noexcept {
 		const auto found = shader_keys_.find(key);
 		return found == shader_keys_.end() ? ShaderHandle{} : found->second;
 	}
 	[[nodiscard]] ShaderHandle acquireShader(const std::string &key) noexcept {
 		const ShaderHandle handle = findShader(key);
-		if (!handle.valid()) return {};
+		if (!handle.valid())
+			return {};
 		auto *resource = shaders_.get(handle);
-		if (resource == nullptr) return {};
+		if (resource == nullptr)
+			return {};
 		++resource->references;
 		return handle;
 	}
@@ -168,7 +172,7 @@ class ResourceRegistry {
 	void unregisterPipeline(PipelineHandle handle) noexcept {
 		if (device_ != VK_NULL_HANDLE) {
 			if (auto *resource = pipelines_.get(handle); resource != nullptr &&
-			    resource->pipeline != VK_NULL_HANDLE) {
+			                                             resource->pipeline != VK_NULL_HANDLE) {
 				vkDestroyPipeline(device_, resource->pipeline, nullptr);
 			}
 		}
@@ -182,7 +186,7 @@ class ResourceRegistry {
 	void unregisterDescriptorLayout(DescriptorLayoutHandle handle) noexcept {
 		if (device_ != VK_NULL_HANDLE) {
 			if (auto *resource = descriptor_layouts_.get(handle); resource != nullptr &&
-			    resource->layout != VK_NULL_HANDLE) {
+			                                                      resource->layout != VK_NULL_HANDLE) {
 				vkDestroyDescriptorSetLayout(device_, resource->layout, nullptr);
 			}
 		}
@@ -195,7 +199,7 @@ class ResourceRegistry {
 	void unregisterDescriptorPool(DescriptorPoolHandle handle) noexcept {
 		if (device_ != VK_NULL_HANDLE) {
 			if (auto *resource = descriptor_pools_.get(handle); resource != nullptr &&
-			    resource->pool != VK_NULL_HANDLE) {
+			                                                    resource->pool != VK_NULL_HANDLE) {
 				vkDestroyDescriptorPool(device_, resource->pool, nullptr);
 			}
 		}
@@ -208,7 +212,7 @@ class ResourceRegistry {
 	void unregisterPipelineLayout(PipelineLayoutHandle handle) noexcept {
 		if (device_ != VK_NULL_HANDLE) {
 			if (auto *resource = pipeline_layouts_.get(handle); resource != nullptr &&
-			    resource->layout != VK_NULL_HANDLE) {
+			                                                    resource->layout != VK_NULL_HANDLE) {
 				vkDestroyPipelineLayout(device_, resource->layout, nullptr);
 			}
 		}
@@ -297,8 +301,8 @@ class ResourceRegistry {
 				vkDestroyImage(device, resource.image, nullptr);
 			}
 			resource.sampler = VK_NULL_HANDLE;
-			resource.view = VK_NULL_HANDLE;
-			resource.image = VK_NULL_HANDLE;
+			resource.view    = VK_NULL_HANDLE;
+			resource.image   = VK_NULL_HANDLE;
 		});
 	}
 
@@ -312,17 +316,17 @@ class ResourceRegistry {
 		});
 	}
 
-	VkDevice device_ = VK_NULL_HANDLE;
-	ResourcePool<BufferResource, BufferTag>     buffers_;
-	ResourcePool<ImageResource, ImageTag>       images_;
-	ResourcePool<ShaderResource, ShaderTag>     shaders_;
-	ResourcePool<PipelineResource, PipelineTag> pipelines_;
+	VkDevice                                                    device_ = VK_NULL_HANDLE;
+	ResourcePool<BufferResource, BufferTag>                     buffers_;
+	ResourcePool<ImageResource, ImageTag>                       images_;
+	ResourcePool<ShaderResource, ShaderTag>                     shaders_;
+	ResourcePool<PipelineResource, PipelineTag>                 pipelines_;
 	ResourcePool<DescriptorLayoutResource, DescriptorLayoutTag> descriptor_layouts_;
-	ResourcePool<DescriptorPoolResource, DescriptorPoolTag> descriptor_pools_;
-	ResourcePool<PipelineLayoutResource, PipelineLayoutTag> pipeline_layouts_;
-	ResourcePool<RenderPassResource, RenderPassTag>         render_passes_;
-	ResourcePool<FramebufferResource, FramebufferTag>       framebuffers_;
-	std::unordered_map<std::string, ShaderHandle> shader_keys_;
+	ResourcePool<DescriptorPoolResource, DescriptorPoolTag>     descriptor_pools_;
+	ResourcePool<PipelineLayoutResource, PipelineLayoutTag>     pipeline_layouts_;
+	ResourcePool<RenderPassResource, RenderPassTag>             render_passes_;
+	ResourcePool<FramebufferResource, FramebufferTag>           framebuffers_;
+	std::unordered_map<std::string, ShaderHandle>               shader_keys_;
 };
 
 } // namespace oxide

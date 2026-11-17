@@ -1,5 +1,5 @@
-#include <oxide/vulkan/device/vulkan_device.hpp>
 #include <oxide/vulkan/core/vk_error.hpp>
+#include <oxide/vulkan/device/vulkan_device.hpp>
 
 #include <algorithm>
 #include <utility>
@@ -8,9 +8,9 @@ namespace oxide {
 
 DeviceMemoryAllocation VulkanDevice::allocateMemory(
     const VkMemoryRequirements &requirements,
-    VkMemoryPropertyFlags      properties) {
+    VkMemoryPropertyFlags       properties) {
 	const std::uint32_t memory_type = findMemoryType(requirements.memoryTypeBits, properties);
-	const VkDeviceSize alignment = requirements.alignment == 0 ? 1 : requirements.alignment;
+	const VkDeviceSize  alignment   = requirements.alignment == 0 ? 1 : requirements.alignment;
 
 	for (auto &block : memory_blocks_) {
 		if (block.type != memory_type) {
@@ -28,7 +28,7 @@ DeviceMemoryAllocation VulkanDevice::allocateMemory(
 			const VkDeviceSize remaining_size = range->size - padding - requirements.size;
 			if (remaining_size > 0) {
 				range->offset = aligned_offset + requirements.size;
-				range->size = remaining_size;
+				range->size   = remaining_size;
 				if (padding > 0) {
 					block.free_ranges.insert(range, { aligned_offset - padding, padding });
 				}
@@ -53,8 +53,8 @@ DeviceMemoryAllocation VulkanDevice::allocateMemory(
 	    (requirements.size + alignment - 1) & ~(alignment - 1));
 
 	VkMemoryAllocateInfo allocate_info{};
-	allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocate_info.allocationSize = block_size;
+	allocate_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocate_info.allocationSize  = block_size;
 	allocate_info.memoryTypeIndex = memory_type;
 
 	MemoryBlock block{};
@@ -78,10 +78,12 @@ DeviceMemoryAllocation VulkanDevice::allocateMemory(
 }
 
 void VulkanDevice::freeMemory(const DeviceMemoryAllocation &allocation) noexcept {
-	if (allocation.memory == VK_NULL_HANDLE || allocation.size == 0) return;
+	if (allocation.memory == VK_NULL_HANDLE || allocation.size == 0)
+		return;
 	for (auto &block : memory_blocks_) {
-		if (block.memory != allocation.memory) continue;
-		block.free_ranges.push_back({allocation.offset, allocation.size});
+		if (block.memory != allocation.memory)
+			continue;
+		block.free_ranges.push_back({ allocation.offset, allocation.size });
 		std::sort(block.free_ranges.begin(), block.free_ranges.end(),
 		          [](const MemoryBlock::FreeRange &left, const MemoryBlock::FreeRange &right) {
 			          return left.offset < right.offset;
@@ -91,7 +93,7 @@ void VulkanDevice::freeMemory(const DeviceMemoryAllocation &allocation) noexcept
 			if (!merged.empty() && merged.back().offset + merged.back().size >= range.offset) {
 				const VkDeviceSize end = std::max(merged.back().offset + merged.back().size,
 				                                  range.offset + range.size);
-				merged.back().size = end - merged.back().offset;
+				merged.back().size     = end - merged.back().offset;
 			} else {
 				merged.push_back(range);
 			}
@@ -99,7 +101,8 @@ void VulkanDevice::freeMemory(const DeviceMemoryAllocation &allocation) noexcept
 		block.free_ranges = std::move(merged);
 		while (!block.free_ranges.empty()) {
 			const auto &tail = block.free_ranges.back();
-			if (tail.offset + tail.size != block.used) break;
+			if (tail.offset + tail.size != block.used)
+				break;
 			block.used = tail.offset;
 			block.free_ranges.pop_back();
 		}
@@ -120,6 +123,5 @@ void *VulkanDevice::mapMemory(const DeviceMemoryAllocation &allocation) const {
 	}
 	return mapped;
 }
-
 
 } // namespace oxide

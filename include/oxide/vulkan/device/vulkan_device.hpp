@@ -63,13 +63,13 @@ class VulkanDevice {
 	    VkImageUsageFlags     usage) const;
 	[[nodiscard]] DeviceMemoryAllocation allocateMemory(
 	    const VkMemoryRequirements &requirements, VkMemoryPropertyFlags properties);
-	void                           freeMemory(const DeviceMemoryAllocation &allocation) noexcept;
-	[[nodiscard]] void            *mapMemory(const DeviceMemoryAllocation &allocation) const;
+	void                                          freeMemory(const DeviceMemoryAllocation &allocation) noexcept;
+	[[nodiscard]] void                           *mapMemory(const DeviceMemoryAllocation &allocation) const;
 	[[nodiscard]] const VkPhysicalDeviceFeatures &features() const noexcept { return enabled_features_; }
-	[[nodiscard]] bool             deviceLost() const noexcept { return device_lost_; }
-	[[nodiscard]] ResourceRegistry &resources() noexcept { return resources_; }
-	[[nodiscard]] const ResourceRegistry &resources() const noexcept { return resources_; }
-	void                           waitIdle() const;
+	[[nodiscard]] bool                            deviceLost() const noexcept { return device_lost_; }
+	[[nodiscard]] ResourceRegistry               &resources() noexcept { return resources_; }
+	[[nodiscard]] const ResourceRegistry         &resources() const noexcept { return resources_; }
+	void                                          waitIdle() const;
 
 	// Record and submit one short command buffer, then wait for the graphics
 	// queue to finish. Useful for uploads, layout transitions, and headless
@@ -82,43 +82,43 @@ class VulkanDevice {
 	void waitIdleNoThrow() const noexcept;
 
   private:
-	void createInstance(const std::string app_name);
-	void setupDebugMessenger();
-	void destroyDebugMessenger() noexcept;
-	void selectPhysicalDevice(VkSurfaceKHR surface);
+	void              createInstance(const std::string app_name);
+	void              setupDebugMessenger();
+	void              destroyDebugMessenger() noexcept;
+	void              selectPhysicalDevice(VkSurfaceKHR surface);
 	[[nodiscard]] int scorePhysicalDevice(
-	    VkPhysicalDevice device,
-	    VkSurfaceKHR     surface,
-	    QueueFamilies    &queues,
+	    VkPhysicalDevice          device,
+	    VkSurfaceKHR              surface,
+	    QueueFamilies            &queues,
 	    VkPhysicalDeviceFeatures &features) const;
 	void createLogicalDevice(VkSurfaceKHR surface);
 	void createPipelineCache();
 	void markDeviceLost() const noexcept { device_lost_ = true; }
 
-	std::string      app_name_;
-	VkInstance       instance_        = VK_NULL_HANDLE;
-	VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
-	VkDevice         device_          = VK_NULL_HANDLE;
-	VkQueue          graphics_queue_  = VK_NULL_HANDLE;
-	VkQueue          present_queue_   = VK_NULL_HANDLE;
-	VkCommandPool    command_pool_    = VK_NULL_HANDLE;
-	VkPipelineCache  pipeline_cache_  = VK_NULL_HANDLE;
+	std::string              app_name_;
+	VkInstance               instance_        = VK_NULL_HANDLE;
+	VkPhysicalDevice         physical_device_ = VK_NULL_HANDLE;
+	VkDevice                 device_          = VK_NULL_HANDLE;
+	VkQueue                  graphics_queue_  = VK_NULL_HANDLE;
+	VkQueue                  present_queue_   = VK_NULL_HANDLE;
+	VkCommandPool            command_pool_    = VK_NULL_HANDLE;
+	VkPipelineCache          pipeline_cache_  = VK_NULL_HANDLE;
 	VkPhysicalDeviceFeatures enabled_features_{};
-	mutable bool device_lost_ = false;
+	mutable bool             device_lost_ = false;
 	struct MemoryBlock {
 		struct FreeRange {
 			VkDeviceSize offset = 0;
-			VkDeviceSize size = 0;
+			VkDeviceSize size   = 0;
 		};
-		VkDeviceMemory memory = VK_NULL_HANDLE;
-		VkDeviceSize size = 0;
-		VkDeviceSize used = 0;
-		std::uint32_t type = 0;
-		void *mapped = nullptr;
+		VkDeviceMemory         memory = VK_NULL_HANDLE;
+		VkDeviceSize           size   = 0;
+		VkDeviceSize           used   = 0;
+		std::uint32_t          type   = 0;
+		void                  *mapped = nullptr;
 		std::vector<FreeRange> free_ranges;
 	};
 	std::vector<MemoryBlock> memory_blocks_;
-	ResourceRegistry resources_;
+	ResourceRegistry         resources_;
 	VkDebugUtilsMessengerEXT debug_messenger_ = VK_NULL_HANDLE;
 };
 
@@ -151,4 +151,4 @@ class DeviceIdleGuard {
 	const VulkanDevice &device_;
 };
 
-}
+} // namespace oxide

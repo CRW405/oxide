@@ -15,23 +15,23 @@ struct BufferResource {
 };
 
 struct ImageResource {
-	VkImage        image = VK_NULL_HANDLE;
-	VkDeviceMemory memory = VK_NULL_HANDLE;
-	VkDeviceSize   offset = 0;
-	VkDeviceSize   size   = 0;
-	VkImageView    view = VK_NULL_HANDLE;
+	VkImage        image   = VK_NULL_HANDLE;
+	VkDeviceMemory memory  = VK_NULL_HANDLE;
+	VkDeviceSize   offset  = 0;
+	VkDeviceSize   size    = 0;
+	VkImageView    view    = VK_NULL_HANDLE;
 	VkSampler      sampler = VK_NULL_HANDLE;
 };
 
 struct ShaderResource {
-	VkShaderModule module = VK_NULL_HANDLE;
+	VkShaderModule module     = VK_NULL_HANDLE;
 	std::uint32_t  references = 1;
 	std::string    key;
 };
 
 struct PipelineResource {
 	VkPipeline       pipeline = VK_NULL_HANDLE;
-	VkPipelineLayout layout = VK_NULL_HANDLE;
+	VkPipelineLayout layout   = VK_NULL_HANDLE;
 };
 
 struct DescriptorLayoutResource {

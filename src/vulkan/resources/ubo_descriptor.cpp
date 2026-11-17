@@ -1,6 +1,6 @@
-#include <oxide/vulkan/resources/ubo_descriptor.hpp>
-#include <oxide/vulkan/resources/buffer.hpp>
 #include <oxide/tools/log.hpp>
+#include <oxide/vulkan/resources/buffer.hpp>
+#include <oxide/vulkan/resources/ubo_descriptor.hpp>
 
 namespace oxide {
 
@@ -16,10 +16,10 @@ VkDescriptorSetLayout requireLayout(VkDescriptorSetLayout layout) {
 } // namespace
 
 UBODescriptorSet::UBODescriptorSet(
-    VulkanDevice       &device,
-    const Buffer       &buffer,
-    std::uint32_t       binding,
-    VkShaderStageFlags  stageFlags)
+    VulkanDevice      &device,
+    const Buffer      &buffer,
+    std::uint32_t      binding,
+    VkShaderStageFlags stageFlags)
     : owned_layout_(std::make_unique<DescriptorSetLayout>(
           device, DescriptorBinding{ binding, DEFAULT_DESCRIPTOR_TYPE, stageFlags })),
       layout_handle_(owned_layout_->handle()),
@@ -29,10 +29,10 @@ UBODescriptorSet::UBODescriptorSet(
 }
 
 UBODescriptorSet::UBODescriptorSet(
-    VulkanDevice        &device,
-    const Buffer        &buffer,
+    VulkanDevice         &device,
+    const Buffer         &buffer,
     VkDescriptorSetLayout layout,
-    std::uint32_t        binding)
+    std::uint32_t         binding)
     : layout_handle_(requireLayout(layout)),
       pool_(device, DEFAULT_DESCRIPTOR_TYPE),
       set_(pool_, layout_handle_) {

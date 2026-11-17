@@ -31,24 +31,24 @@ class Buffer;
 class UBODescriptorSet {
   public:
 	// Defaults used by the model-view-projection shader.
-	static constexpr std::uint32_t      DEFAULT_BINDING = 0;
-	static constexpr VkShaderStageFlags DEFAULT_STAGE_FLAGS = VK_SHADER_STAGE_VERTEX_BIT;
+	static constexpr std::uint32_t      DEFAULT_BINDING         = 0;
+	static constexpr VkShaderStageFlags DEFAULT_STAGE_FLAGS     = VK_SHADER_STAGE_VERTEX_BIT;
 	static constexpr VkDescriptorType   DEFAULT_DESCRIPTOR_TYPE = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
 	UBODescriptorSet(
-	    VulkanDevice       &device,
-	    const Buffer       &buffer,
-	    std::uint32_t       binding    = DEFAULT_BINDING,
-	    VkShaderStageFlags  stageFlags = DEFAULT_STAGE_FLAGS);
+	    VulkanDevice      &device,
+	    const Buffer      &buffer,
+	    std::uint32_t      binding    = DEFAULT_BINDING,
+	    VkShaderStageFlags stageFlags = DEFAULT_STAGE_FLAGS);
 
 	// Allocate the set from a layout owned elsewhere. The reflected
 	// PipelineLayout::descriptorSetLayout(set) accessor is the usual source.
 	// The layout must already declare a uniform buffer at binding.
 	UBODescriptorSet(
-	    VulkanDevice        &device,
-	    const Buffer        &buffer,
+	    VulkanDevice         &device,
+	    const Buffer         &buffer,
 	    VkDescriptorSetLayout layout,
-	    std::uint32_t        binding = DEFAULT_BINDING);
+	    std::uint32_t         binding = DEFAULT_BINDING);
 
 	UBODescriptorSet(const UBODescriptorSet &)            = delete;
 	UBODescriptorSet &operator=(const UBODescriptorSet &) = delete;

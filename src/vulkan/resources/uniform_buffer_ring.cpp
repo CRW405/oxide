@@ -1,5 +1,5 @@
-#include <oxide/vulkan/resources/uniform_buffer_ring.hpp>
 #include <oxide/tools/log.hpp>
+#include <oxide/vulkan/resources/uniform_buffer_ring.hpp>
 
 #include <string>
 
@@ -17,12 +17,12 @@ VkDescriptorSetLayout requireLayout(VkDescriptorSetLayout layout) {
 } // namespace
 
 UniformBufferRing::UniformBufferRing(
-    VulkanDevice       &device,
-    std::uint32_t       frameCount,
-    VkDeviceSize        size,
-    const void         *initialData,
-    std::uint32_t       binding,
-    VkShaderStageFlags  stageFlags)
+    VulkanDevice      &device,
+    std::uint32_t      frameCount,
+    VkDeviceSize       size,
+    const void        *initialData,
+    std::uint32_t      binding,
+    VkShaderStageFlags stageFlags)
     : device_(device),
       owned_layout_(std::make_unique<DescriptorSetLayout>(
           device, DescriptorBinding{ binding, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, stageFlags })),
@@ -35,12 +35,12 @@ UniformBufferRing::UniformBufferRing(
 }
 
 UniformBufferRing::UniformBufferRing(
-    VulkanDevice        &device,
-    std::uint32_t        frameCount,
-    VkDeviceSize         size,
-    const void          *initialData,
+    VulkanDevice         &device,
+    std::uint32_t         frameCount,
+    VkDeviceSize          size,
+    const void           *initialData,
     VkDescriptorSetLayout layout,
-    std::uint32_t        binding)
+    std::uint32_t         binding)
     : device_(device),
       layout_handle_(requireLayout(layout)),
       pool_(device, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, frameCount, frameCount),

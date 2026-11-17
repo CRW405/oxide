@@ -17,7 +17,7 @@ class BorrowedPipelineLayout {
 	explicit constexpr BorrowedPipelineLayout(VkPipelineLayout handle) noexcept : handle_(handle) {}
 
 	[[nodiscard]] constexpr VkPipelineLayout get() const noexcept { return handle_; }
-	[[nodiscard]] constexpr bool valid() const noexcept { return handle_ != VK_NULL_HANDLE; }
+	[[nodiscard]] constexpr bool             valid() const noexcept { return handle_ != VK_NULL_HANDLE; }
 
   private:
 	VkPipelineLayout handle_ = VK_NULL_HANDLE;
@@ -28,13 +28,13 @@ struct VertexInputDescription {
 	std::vector<VkVertexInputAttributeDescription> attributes;
 
 	VertexInputDescription &addBinding(
-	    std::uint32_t binding,
-	    std::uint32_t stride,
+	    std::uint32_t     binding,
+	    std::uint32_t     stride,
 	    VkVertexInputRate inputRate = VK_VERTEX_INPUT_RATE_VERTEX);
 	VertexInputDescription &addAttribute(
 	    std::uint32_t location,
 	    std::uint32_t binding,
-	    VkFormat format,
+	    VkFormat      format,
 	    std::uint32_t offset);
 };
 
@@ -55,26 +55,26 @@ struct PipelineConfigInfo {
 
 	// Single-attachment default. Kept for the common case and for code that
 	// configures one color attachment directly.
-	VkPipelineColorBlendAttachmentState    colorBlendAttachment;
+	VkPipelineColorBlendAttachmentState colorBlendAttachment;
 
 	// Multiple render target blend states. When this vector is non-empty it
 	// replaces colorBlendAttachment and colorBlendInfo.attachmentCount follows
 	// its size. Use setColorAttachmentCount() to populate it.
 	std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments;
 
-	VkPipelineColorBlendStateCreateInfo    colorBlendInfo;
-	VkPipelineDepthStencilStateCreateInfo  depthStencilInfo;
-	std::vector<VkDynamicState>            dynamicStates;
-	VkPipelineDynamicStateCreateInfo       dynamicStateInfo;
+	VkPipelineColorBlendStateCreateInfo   colorBlendInfo;
+	VkPipelineDepthStencilStateCreateInfo depthStencilInfo;
+	std::vector<VkDynamicState>           dynamicStates;
+	VkPipelineDynamicStateCreateInfo      dynamicStateInfo;
 
 	// Per-stage specialization constant overrides used when the pipeline is
 	// created. Empty stages use the defaults compiled into the SPIR-V.
-	SpecializationConstants                vertexSpecialization;
-	SpecializationConstants                fragmentSpecialization;
+	SpecializationConstants vertexSpecialization;
+	SpecializationConstants fragmentSpecialization;
 
-	BorrowedPipelineLayout                 pipelineLayout;
-	VkRenderPass                           renderPass     = VK_NULL_HANDLE;
-	std::uint32_t                          subpass        = 0;
+	BorrowedPipelineLayout pipelineLayout;
+	VkRenderPass           renderPass = VK_NULL_HANDLE;
+	std::uint32_t          subpass    = 0;
 
 	PipelineConfigInfo &setVertexInput(const VertexInputDescription &description);
 	PipelineConfigInfo &setRenderPass(VkRenderPass renderPass) noexcept;

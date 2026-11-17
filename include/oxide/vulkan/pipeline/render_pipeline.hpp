@@ -6,9 +6,9 @@
 #include <memory>
 #include <string>
 
+#include <oxide/vulkan/device/vulkan_device.hpp>
 #include <oxide/vulkan/pipeline/pipeline_config.hpp>
 #include <oxide/vulkan/pipeline/shader_library.hpp>
-#include <oxide/vulkan/device/vulkan_device.hpp>
 
 namespace oxide {
 
@@ -51,17 +51,17 @@ class Pipeline {
 
 	[[nodiscard]] VkPipeline       pipeline() const noexcept;
 	[[nodiscard]] VkPipelineLayout layout() const noexcept;
-	[[nodiscard]] PipelineHandle handle() const noexcept { return handle_; }
+	[[nodiscard]] PipelineHandle   handle() const noexcept { return handle_; }
 
 	static PipelineConfigInfo defaultPipelineConfigInfo();
 
   private:
-	VulkanDevice    &device_;
-	VkPipelineLayout layout_           = VK_NULL_HANDLE;
-	bool             owns_layout_      = false;
-	PipelineHandle   handle_{};
-	ShaderHandle     vert_shader_handle_{};
-	ShaderHandle     frag_shader_handle_{};
+	VulkanDevice        &device_;
+	VkPipelineLayout     layout_      = VK_NULL_HANDLE;
+	bool                 owns_layout_ = false;
+	PipelineHandle       handle_{};
+	ShaderHandle         vert_shader_handle_{};
+	ShaderHandle         frag_shader_handle_{};
 	PipelineLayoutHandle layout_handle_{};
 };
 
@@ -70,16 +70,16 @@ class Pipeline {
 class SwapchainPipeline {
   public:
 	SwapchainPipeline(
-	    VulkanContext       &context,
-	    VulkanDevice        &device,
-	    const std::string   &vertFilepath,
-	    const std::string   &fragFilepath,
-	    PipelineConfigInfo   configInfo);
+	    VulkanContext     &context,
+	    VulkanDevice      &device,
+	    const std::string &vertFilepath,
+	    const std::string &fragFilepath,
+	    PipelineConfigInfo configInfo);
 	SwapchainPipeline(
-	    VulkanContext       &context,
-	    VulkanDevice        &device,
-	    GraphicsShaderFiles  shaders,
-	    PipelineConfigInfo   configInfo);
+	    VulkanContext      &context,
+	    VulkanDevice       &device,
+	    GraphicsShaderFiles shaders,
+	    PipelineConfigInfo  configInfo);
 	~SwapchainPipeline();
 
 	SwapchainPipeline(const SwapchainPipeline &)            = delete;
@@ -87,18 +87,18 @@ class SwapchainPipeline {
 	SwapchainPipeline(SwapchainPipeline &&)                 = delete;
 	SwapchainPipeline &operator=(SwapchainPipeline &&)      = delete;
 
-	void bind(VkCommandBuffer commandBuffer) const { pipeline_->bind(commandBuffer); }
-	[[nodiscard]] Pipeline &pipeline() noexcept { return *pipeline_; }
+	void                          bind(VkCommandBuffer commandBuffer) const { pipeline_->bind(commandBuffer); }
+	[[nodiscard]] Pipeline       &pipeline() noexcept { return *pipeline_; }
 	[[nodiscard]] const Pipeline &pipeline() const noexcept { return *pipeline_; }
 
   private:
 	void rebuild(VkRenderPass renderPass);
 
-	VulkanContext     &context_;
-	VulkanDevice      &device_;
-	std::string        vertFilepath_;
-	std::string        fragFilepath_;
-	PipelineConfigInfo config_;
+	VulkanContext            &context_;
+	VulkanDevice             &device_;
+	std::string               vertFilepath_;
+	std::string               fragFilepath_;
+	PipelineConfigInfo        config_;
 	std::unique_ptr<Pipeline> pipeline_;
 	struct CallbackState;
 	std::shared_ptr<CallbackState> callback_state_;
@@ -115,14 +115,14 @@ class SwapchainPipeline {
 class ComputePipeline {
   public:
 	ComputePipeline(
-	    VulkanDevice      &device,
-	    const std::string &compFilepath,
-	    BorrowedPipelineLayout layout = {},
+	    VulkanDevice                  &device,
+	    const std::string             &compFilepath,
+	    BorrowedPipelineLayout         layout         = {},
 	    const SpecializationConstants &specialization = {});
 	ComputePipeline(
-	    VulkanDevice             &device,
-	    const ComputeShaderFile  &shader,
-	    BorrowedPipelineLayout    layout = {},
+	    VulkanDevice                  &device,
+	    const ComputeShaderFile       &shader,
+	    BorrowedPipelineLayout         layout         = {},
 	    const SpecializationConstants &specialization = {});
 
 	~ComputePipeline();
@@ -142,15 +142,15 @@ class ComputePipeline {
 
 	[[nodiscard]] VkPipeline       pipeline() const noexcept;
 	[[nodiscard]] VkPipelineLayout layout() const noexcept;
-	[[nodiscard]] PipelineHandle handle() const noexcept { return handle_; }
+	[[nodiscard]] PipelineHandle   handle() const noexcept { return handle_; }
 
   private:
-	VulkanDevice    &device_;
-	VkPipelineLayout layout_      = VK_NULL_HANDLE;
-	bool             owns_layout_ = false;
-	PipelineHandle   handle_{};
-	ShaderHandle     shader_handle_{};
+	VulkanDevice        &device_;
+	VkPipelineLayout     layout_      = VK_NULL_HANDLE;
+	bool                 owns_layout_ = false;
+	PipelineHandle       handle_{};
+	ShaderHandle         shader_handle_{};
 	PipelineLayoutHandle layout_handle_{};
 };
 
-}
+} // namespace oxide

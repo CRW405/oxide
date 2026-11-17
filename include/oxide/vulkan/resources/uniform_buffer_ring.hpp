@@ -7,9 +7,9 @@
 #include <type_traits>
 #include <vector>
 
+#include <oxide/vulkan/device/vulkan_device.hpp>
 #include <oxide/vulkan/resources/buffer.hpp>
 #include <oxide/vulkan/resources/descriptor_set.hpp>
-#include <oxide/vulkan/device/vulkan_device.hpp>
 
 namespace oxide {
 
@@ -29,20 +29,20 @@ namespace oxide {
 class UniformBufferRing {
   public:
 	UniformBufferRing(
-	    VulkanDevice       &device,
-	    std::uint32_t       frameCount,
-	    VkDeviceSize        size,
-	    const void         *initialData,
-	    std::uint32_t       binding    = 0,
-	    VkShaderStageFlags  stageFlags = VK_SHADER_STAGE_VERTEX_BIT);
+	    VulkanDevice      &device,
+	    std::uint32_t      frameCount,
+	    VkDeviceSize       size,
+	    const void        *initialData,
+	    std::uint32_t      binding    = 0,
+	    VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT);
 
 	template <typename T>
 	UniformBufferRing(
 	    VulkanDevice      &device,
 	    std::uint32_t      frameCount,
 	    const T           &initialData,
-	    std::uint32_t       binding    = 0,
-	    VkShaderStageFlags  stageFlags = VK_SHADER_STAGE_VERTEX_BIT)
+	    std::uint32_t      binding    = 0,
+	    VkShaderStageFlags stageFlags = VK_SHADER_STAGE_VERTEX_BIT)
 	    : UniformBufferRing(
 	          device,
 	          frameCount,
@@ -57,20 +57,20 @@ class UniformBufferRing {
 	// PipelineLayout::descriptorSetLayout(set) accessor is the usual source.
 	// The layout must already declare a uniform buffer at binding.
 	UniformBufferRing(
-	    VulkanDevice        &device,
-	    std::uint32_t        frameCount,
-	    VkDeviceSize         size,
-	    const void          *initialData,
+	    VulkanDevice         &device,
+	    std::uint32_t         frameCount,
+	    VkDeviceSize          size,
+	    const void           *initialData,
 	    VkDescriptorSetLayout layout,
-	    std::uint32_t        binding = 0);
+	    std::uint32_t         binding = 0);
 
 	template <typename T>
 	UniformBufferRing(
-	    VulkanDevice        &device,
-	    std::uint32_t        frameCount,
-	    const T             &initialData,
+	    VulkanDevice         &device,
+	    std::uint32_t         frameCount,
+	    const T              &initialData,
 	    VkDescriptorSetLayout layout,
-	    std::uint32_t        binding = 0)
+	    std::uint32_t         binding = 0)
 	    : UniformBufferRing(
 	          device,
 	          frameCount,
@@ -90,7 +90,7 @@ class UniformBufferRing {
 
 	[[nodiscard]] VkDescriptorSetLayout layout() const noexcept { return layout_handle_; }
 	[[nodiscard]] std::uint32_t         frameCount() const noexcept { return frame_count_; }
-	[[nodiscard]] VkDescriptorSet descriptorSet(std::uint32_t frameIndex) const;
+	[[nodiscard]] VkDescriptorSet       descriptorSet(std::uint32_t frameIndex) const;
 
 	void update(std::uint32_t frameIndex, const void *data, VkDeviceSize size);
 
@@ -113,15 +113,15 @@ class UniformBufferRing {
 	void initialize(const void *initialData);
 	void checkFrameIndex(std::uint32_t frameIndex) const;
 
-	VulkanDevice                               &device_;
-	std::unique_ptr<DescriptorSetLayout>        owned_layout_;
-	VkDescriptorSetLayout                       layout_handle_ = VK_NULL_HANDLE;
+	VulkanDevice                        &device_;
+	std::unique_ptr<DescriptorSetLayout> owned_layout_;
+	VkDescriptorSetLayout                layout_handle_ = VK_NULL_HANDLE;
 	// Buffers are declared before the pool so the pool (and its descriptor
 	// sets) is destroyed first, releasing references before the buffers go.
 	std::vector<std::unique_ptr<UniformBuffer>> buffers_;
 	DescriptorPool                              pool_;
-	std::uint32_t                               binding_ = 0;
-	VkDeviceSize                                size_    = 0;
+	std::uint32_t                               binding_     = 0;
+	VkDeviceSize                                size_        = 0;
 	std::uint32_t                               frame_count_ = 0;
 	std::vector<VkDescriptorSet>                sets_;
 };

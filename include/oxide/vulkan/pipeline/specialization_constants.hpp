@@ -44,12 +44,12 @@ class SpecializationConstants {
 		return set(constant.constantId, value);
 	}
 
-	[[nodiscard]] bool empty() const noexcept { return entries_.empty(); }
+	[[nodiscard]] bool        empty() const noexcept { return entries_.empty(); }
 	[[nodiscard]] std::size_t size() const noexcept { return entries_.size(); }
 
 	// Build the Vulkan description. The returned value points into this object
 	// and stays valid as long as no further set() call is made.
-	[[nodiscard]] VkSpecializationInfo info() const noexcept;
+	[[nodiscard]] VkSpecializationInfo                         info() const noexcept;
 	[[nodiscard]] const std::vector<VkSpecializationMapEntry> &entries() const noexcept {
 		return entries_;
 	}

@@ -27,9 +27,9 @@ namespace oxide {
 // which are included automatically for rendering and PNG readback.
 // ============================================================================
 struct OffscreenConfig {
-	std::uint32_t         width       = 0;
-	std::uint32_t         height      = 0;
-	VkFormat              colorFormat = VK_FORMAT_R8G8B8A8_SRGB;
+	std::uint32_t width       = 0;
+	std::uint32_t height      = 0;
+	VkFormat      colorFormat = VK_FORMAT_R8G8B8A8_SRGB;
 
 	// Optional MRT format list. When non-empty it replaces colorFormat and
 	// defines one color attachment per entry.
@@ -85,16 +85,16 @@ class OffscreenTarget {
 	[[nodiscard]] std::uint32_t colorCount() const noexcept {
 		return static_cast<std::uint32_t>(color_formats_.size());
 	}
-	[[nodiscard]] VkFormat colorFormat(std::uint32_t index = 0) const noexcept;
+	[[nodiscard]] VkFormat              colorFormat(std::uint32_t index = 0) const noexcept;
 	[[nodiscard]] VkSampleCountFlagBits sampleCount() const noexcept { return config_.sampleCount; }
-	[[nodiscard]] bool isMultisampled() const noexcept {
+	[[nodiscard]] bool                  isMultisampled() const noexcept {
 		return config_.sampleCount != VK_SAMPLE_COUNT_1_BIT;
 	}
 
 	// Resolved, single-sample image resources. These are the images a later
 	// pass should sample. With no MSAA they are the render attachments
 	// themselves.
-	[[nodiscard]] VkImage  colorImage(std::uint32_t index = 0) const noexcept;
+	[[nodiscard]] VkImage     colorImage(std::uint32_t index = 0) const noexcept;
 	[[nodiscard]] VkImageView colorView(std::uint32_t index = 0) const noexcept;
 	[[nodiscard]] VkSampler   sampler(std::uint32_t index = 0) const noexcept;
 
@@ -119,8 +119,8 @@ class OffscreenTarget {
 	    VkCommandBuffer      commandBuffer,
 	    std::array<float, 4> clearColor = { 0.0f, 0.0f, 0.0f, 1.0f }) const;
 	void beginRenderPass(
-	    VkCommandBuffer                              commandBuffer,
-	    const std::vector<std::array<float, 4>>     &clearColors) const;
+	    VkCommandBuffer                          commandBuffer,
+	    const std::vector<std::array<float, 4>> &clearColors) const;
 	void endRenderPass(VkCommandBuffer commandBuffer) const;
 	void setViewportAndScissor(VkCommandBuffer commandBuffer) const;
 
@@ -158,15 +158,15 @@ class OffscreenTarget {
 	    const char           *label);
 	[[nodiscard]] VkFormat findDepthFormat() const;
 
-	VulkanDevice   &device_;
-	OffscreenConfig config_;
-	std::vector<VkFormat>   color_formats_;
+	VulkanDevice            &device_;
+	OffscreenConfig          config_;
+	std::vector<VkFormat>    color_formats_;
 	std::vector<ImageHandle> color_images_;
 	std::vector<ImageHandle> resolve_images_;
-	ImageHandle       depth_image_;
-	RenderPassHandle  render_pass_;
-	FramebufferHandle framebuffer_;
-	VkFormat          depth_format_ = VK_FORMAT_UNDEFINED;
+	ImageHandle              depth_image_;
+	RenderPassHandle         render_pass_;
+	FramebufferHandle        framebuffer_;
+	VkFormat                 depth_format_ = VK_FORMAT_UNDEFINED;
 };
 
 } // namespace oxide

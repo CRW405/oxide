@@ -103,15 +103,15 @@ class ShaderReflection {
 
   private:
 	[[nodiscard]] static ShaderReflection fromModule(const std::string &path);
-	void merge(const ShaderReflection &other);
-	void rebuildDescriptorSets();
+	void                                  merge(const ShaderReflection &other);
+	void                                  rebuildDescriptorSets();
 
-	std::vector<ReflectedDescriptor>             descriptors_;
-	std::vector<ReflectedPushConstant>           push_constants_;
-	std::vector<VkPushConstantRange>             push_constant_ranges_;
-	std::vector<ReflectedSpecializationConstant> specialization_constants_;
+	std::vector<ReflectedDescriptor>                       descriptors_;
+	std::vector<ReflectedPushConstant>                     push_constants_;
+	std::vector<VkPushConstantRange>                       push_constant_ranges_;
+	std::vector<ReflectedSpecializationConstant>           specialization_constants_;
 	std::vector<std::vector<VkDescriptorSetLayoutBinding>> descriptor_sets_;
-	std::uint32_t                                descriptor_set_count_ = 0;
+	std::uint32_t                                          descriptor_set_count_ = 0;
 };
 
 } // namespace oxide

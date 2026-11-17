@@ -93,8 +93,8 @@ class NullLogLine {
 #define OXIDE_LOG_FATAL \
 	(::oxide::LogLine(::oxide::LogLevel::Fatal, ::std::source_location::current()))
 #else
-#define OXIDE_LOG_INFO    (::oxide::NullLogLine{})
+#define OXIDE_LOG_INFO (::oxide::NullLogLine{})
 #define OXIDE_LOG_WARNING (::oxide::NullLogLine{})
-#define OXIDE_LOG_ERROR   (::oxide::NullLogLine{})
-#define OXIDE_LOG_FATAL   (::oxide::NullLogLine{})
+#define OXIDE_LOG_ERROR (::oxide::NullLogLine{})
+#define OXIDE_LOG_FATAL (::oxide::NullLogLine{})
 #endif

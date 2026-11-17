@@ -1,17 +1,17 @@
-#include <oxide/vulkan/device/vulkan_device.hpp>
 #include <oxide/oxide_config.hpp>
 #include <oxide/tools/log.hpp>
 #include <oxide/vulkan/core/vk_error.hpp>
+#include <oxide/vulkan/device/vulkan_device.hpp>
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <set>
 #include <stdexcept>
 #include <utility>
-#include <limits>
 
 namespace oxide {
 
@@ -62,14 +62,14 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 
 VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo() {
 	VkDebugUtilsMessengerCreateInfoEXT info{};
-	info.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+	info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 	// Warnings and errors only: loader info/verbose messages are noisy and
 	// make real problems harder to spot in the terminal.
 	info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
 	                       VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-	info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-	                   VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-	                   VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+	info.messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+	                       VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+	                       VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 	info.pfnUserCallback = debugCallback;
 	return info;
 }
@@ -123,7 +123,7 @@ VulkanDevice::VulkanDevice(GLFWwindow *main_window, std::string app_name) : app_
 
 	createInstance(app_name_);
 
-	VkSurfaceKHR selection_surface = VK_NULL_HANDLE;
+	VkSurfaceKHR   selection_surface = VK_NULL_HANDLE;
 	const VkResult surface_result =
 	    glfwCreateWindowSurface(instance_, main_window, nullptr, &selection_surface);
 	if (surface_result != VK_SUCCESS) {
@@ -210,7 +210,6 @@ VulkanDevice::~VulkanDevice() {
 	if (instance_ != VK_NULL_HANDLE) {
 		vkDestroyInstance(instance_, nullptr);
 	}
-
 }
 
 void VulkanDevice::waitIdle() const {
@@ -287,13 +286,13 @@ void VulkanDevice::createInstance(const std::string app_name) {
 	app_info.engineVersion      = VK_MAKE_VERSION(0, 1, 0);
 	app_info.apiVersion         = VK_API_VERSION_1_0;
 
-	std::uint32_t glfw_extension_count = 0;
-	const char  **glfw_extensions       = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
+	std::uint32_t             glfw_extension_count = 0;
+	const char              **glfw_extensions      = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
 	std::vector<const char *> extensions;
 	if (glfw_extensions != nullptr) {
 		extensions.assign(glfw_extensions, glfw_extensions + glfw_extension_count);
 	}
-	const bool                has_debug_extension =
+	const bool has_debug_extension =
 	    validation_enabled && instanceExtensionAvailable(debug_extension);
 	if (validation_enabled && !has_debug_extension) {
 		OXIDE_LOG_WARNING << "Vulkan debug utils extension is unavailable; "
@@ -403,13 +402,13 @@ bool VulkanDevice::supportsSampleCount(
 	}
 
 	VkImageFormatProperties properties{};
-	const VkResult result = vkGetPhysicalDeviceImageFormatProperties(physical_device_,
-	                                                                 format,
-	                                                                 VK_IMAGE_TYPE_2D,
-	                                                                 VK_IMAGE_TILING_OPTIMAL,
-	                                                                 usage,
-	                                                                 0,
-	                                                                 &properties);
+	const VkResult          result = vkGetPhysicalDeviceImageFormatProperties(physical_device_,
+	                                                                          format,
+	                                                                          VK_IMAGE_TYPE_2D,
+	                                                                          VK_IMAGE_TILING_OPTIMAL,
+	                                                                          usage,
+	                                                                          0,
+	                                                                          &properties);
 	return result == VK_SUCCESS && (properties.sampleCounts & sampleCount) != 0;
 }
 
@@ -430,10 +429,10 @@ std::uint32_t VulkanDevice::findMemoryType(std::uint32_t typeFilter, VkMemoryPro
 }
 
 int VulkanDevice::scorePhysicalDevice(
-    VkPhysicalDevice           device,
-    VkSurfaceKHR               surface,
-    QueueFamilies              &queues,
-    VkPhysicalDeviceFeatures  &features) const {
+    VkPhysicalDevice          device,
+    VkSurfaceKHR              surface,
+    QueueFamilies            &queues,
+    VkPhysicalDeviceFeatures &features) const {
 	queues = findQueueFamilies(device, surface);
 	if (!queues.hasGraphics || (surface != VK_NULL_HANDLE && !queues.hasPresent) ||
 	    (surface != VK_NULL_HANDLE && !swapchainExtensionAvailable(device))) {
@@ -446,16 +445,27 @@ int VulkanDevice::scorePhysicalDevice(
 
 	int score = 0;
 	switch (properties.deviceType) {
-		case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: score += 1000; break;
-		case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: score += 500; break;
-		case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU: score += 250; break;
-		case VK_PHYSICAL_DEVICE_TYPE_CPU: score -= 1000; break;
-		default: break;
+	case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+		score += 1000;
+		break;
+	case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+		score += 500;
+		break;
+	case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+		score += 250;
+		break;
+	case VK_PHYSICAL_DEVICE_TYPE_CPU:
+		score -= 1000;
+		break;
+	default:
+		break;
 	}
 
 	score += static_cast<int>(properties.limits.maxImageDimension2D / 1024);
-	if (features.samplerAnisotropy) score += 100;
-	if (features.geometryShader) score += 50;
+	if (features.samplerAnisotropy)
+		score += 100;
+	if (features.geometryShader)
+		score += 50;
 	return score;
 }
 
@@ -471,14 +481,15 @@ void VulkanDevice::selectPhysicalDevice(VkSurfaceKHR surface) {
 
 	int best_score = std::numeric_limits<int>::min();
 	for (VkPhysicalDevice device : devices) {
-		QueueFamilies queues{};
+		QueueFamilies            queues{};
 		VkPhysicalDeviceFeatures features{};
-		const int score = scorePhysicalDevice(device, surface, queues, features);
-		if (score == std::numeric_limits<int>::min()) continue;
+		const int                score = scorePhysicalDevice(device, surface, queues, features);
+		if (score == std::numeric_limits<int>::min())
+			continue;
 		if (score > best_score) {
-			best_score = score;
-			physical_device_ = device;
-			enabled_features_ = {};
+			best_score                          = score;
+			physical_device_                    = device;
+			enabled_features_                   = {};
 			enabled_features_.samplerAnisotropy = features.samplerAnisotropy;
 		}
 	}
@@ -486,7 +497,7 @@ void VulkanDevice::selectPhysicalDevice(VkSurfaceKHR surface) {
 		VkPhysicalDeviceProperties properties{};
 		vkGetPhysicalDeviceProperties(physical_device_, &properties);
 		OXIDE_LOG_INFO << "selected Vulkan device: " << properties.deviceName
-		              << " (score " << best_score << ")";
+		               << " (score " << best_score << ")";
 		return;
 	}
 	throw runtimeError("no suitable Vulkan device found");
@@ -516,7 +527,7 @@ void VulkanDevice::createLogicalDevice(VkSurfaceKHR surface) {
 	info.pQueueCreateInfos       = queue_infos.data();
 	info.enabledExtensionCount   = surface == VK_NULL_HANDLE ? 0 : 1;
 	info.ppEnabledExtensionNames = surface == VK_NULL_HANDLE ? nullptr : &swapchain_extension;
-	info.pEnabledFeatures         = &enabled_features_;
+	info.pEnabledFeatures        = &enabled_features_;
 	checkVk(vkCreateDevice(physical_device_, &info, nullptr, &device_), "create logical device");
 
 	vkGetDeviceQueue(device_, queues.graphics, 0, &graphics_queue_);
@@ -529,4 +540,4 @@ void VulkanDevice::createLogicalDevice(VkSurfaceKHR surface) {
 	checkVk(vkCreateCommandPool(device_, &pool_info, nullptr, &command_pool_), "create Vulkan device command pool");
 }
 
-}
+} // namespace oxide

@@ -1,7 +1,7 @@
-#include <oxide/vulkan/pipeline/render_pipeline.hpp>
-#include <oxide/vulkan/frame/vulkan_context.hpp>
 #include <oxide/tools/log.hpp>
 #include <oxide/vulkan/core/vk_error.hpp>
+#include <oxide/vulkan/frame/vulkan_context.hpp>
+#include <oxide/vulkan/pipeline/render_pipeline.hpp>
 
 #include <fstream>
 #include <stdexcept>
@@ -14,11 +14,11 @@ struct SwapchainPipeline::CallbackState {
 };
 
 SwapchainPipeline::SwapchainPipeline(
-    VulkanContext       &context,
-    VulkanDevice        &device,
-    const std::string   &vertFilepath,
-    const std::string   &fragFilepath,
-    PipelineConfigInfo   configInfo)
+    VulkanContext     &context,
+    VulkanDevice      &device,
+    const std::string &vertFilepath,
+    const std::string &fragFilepath,
+    PipelineConfigInfo configInfo)
     : context_(context),
       device_(device),
       vertFilepath_(vertFilepath),
@@ -29,7 +29,7 @@ SwapchainPipeline::SwapchainPipeline(
 	config_.setRenderPass(context_.renderPass());
 	rebuild(context_.renderPass());
 	const std::weak_ptr<CallbackState> state = callback_state_;
-	callback_id_ = context_.addSwapchainRecreatedCallback([state](const SwapchainRecreationInfo &info) {
+	callback_id_                             = context_.addSwapchainRecreatedCallback([state](const SwapchainRecreationInfo &info) {
 		if (const std::shared_ptr<CallbackState> callback = state.lock();
 		    callback != nullptr && callback->owner != nullptr && info.renderPassChanged) {
 			callback->owner->rebuild(info.renderPass);
@@ -38,10 +38,10 @@ SwapchainPipeline::SwapchainPipeline(
 }
 
 SwapchainPipeline::SwapchainPipeline(
-    VulkanContext       &context,
-    VulkanDevice        &device,
-    GraphicsShaderFiles  shaders,
-    PipelineConfigInfo   configInfo)
+    VulkanContext      &context,
+    VulkanDevice       &device,
+    GraphicsShaderFiles shaders,
+    PipelineConfigInfo  configInfo)
     : SwapchainPipeline(context, device, shaders.vertex, shaders.fragment, std::move(configInfo)) {}
 
 void SwapchainPipeline::rebuild(VkRenderPass renderPass) {
@@ -128,12 +128,12 @@ Pipeline::Pipeline(
 				const auto *resource = device_.resources().shader(handle);
 				return resource == nullptr ? VK_NULL_HANDLE : resource->module;
 			}
-			const auto code = readShaderFile(path);
+			const auto           code   = readShaderFile(path);
 			const VkShaderModule module = createShaderModule(device_, code, path);
-			handle = device_.resources().registerShader({module, 1, path});
+			handle                      = device_.resources().registerShader({ module, 1, path });
 			return module;
 		};
-		vertex_shader_module = acquireShader(vertFilepath, vert_shader_handle_);
+		vertex_shader_module   = acquireShader(vertFilepath, vert_shader_handle_);
 		fragment_shader_module = acquireShader(fragFilepath, frag_shader_handle_);
 
 		if (!configInfo.pipelineLayout.valid()) {
@@ -142,13 +142,13 @@ Pipeline::Pipeline(
 			layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 			checkVk(vkCreatePipelineLayout(device_.device(), &layoutInfo, nullptr, &layout_),
 			        "create default pipeline layout");
-			owns_layout_ = true;
-			layout_handle_ = device_.resources().registerPipelineLayout({layout_});
+			owns_layout_   = true;
+			layout_handle_ = device_.resources().registerPipelineLayout({ layout_ });
 		} else {
 			layout_ = configInfo.pipelineLayout.get();
 		}
 
-		VkSpecializationInfo vertex_specialization = configInfo.vertexSpecialization.info();
+		VkSpecializationInfo vertex_specialization   = configInfo.vertexSpecialization.info();
 		VkSpecializationInfo fragment_specialization = configInfo.fragmentSpecialization.info();
 
 		VkPipelineShaderStageCreateInfo shaderStages[2]{};
@@ -189,7 +189,7 @@ Pipeline::Pipeline(
 		VkPipeline pipeline = VK_NULL_HANDLE;
 		checkVk(vkCreateGraphicsPipelines(device_.device(), device_.pipelineCache(), 1, &pipelineInfo, nullptr, &pipeline),
 		        "create graphics pipeline");
-		handle_ = device_.resources().registerPipeline({pipeline, layout_});
+		handle_ = device_.resources().registerPipeline({ pipeline, layout_ });
 	} catch (...) {
 		if (frag_shader_handle_.valid()) {
 			device_.resources().unregisterShader(frag_shader_handle_);
@@ -201,8 +201,8 @@ Pipeline::Pipeline(
 		}
 		if (owns_layout_ && layout_ != VK_NULL_HANDLE) {
 			device_.resources().unregisterPipelineLayout(layout_handle_);
-			layout_      = VK_NULL_HANDLE;
-			owns_layout_ = false;
+			layout_        = VK_NULL_HANDLE;
+			owns_layout_   = false;
 			layout_handle_ = {};
 		}
 		throw;
@@ -210,9 +210,9 @@ Pipeline::Pipeline(
 }
 
 Pipeline::Pipeline(
-    VulkanDevice &device,
+    VulkanDevice              &device,
     const GraphicsShaderFiles &shaders,
-    const PipelineConfigInfo &configInfo)
+    const PipelineConfigInfo  &configInfo)
     : Pipeline(device, shaders.vertex, shaders.fragment, configInfo) {}
 
 Pipeline::~Pipeline() {
@@ -226,7 +226,7 @@ Pipeline::~Pipeline() {
 		}
 		if (owns_layout_ && layout_ != VK_NULL_HANDLE) {
 			device_.resources().unregisterPipelineLayout(layout_handle_);
-			layout_ = VK_NULL_HANDLE;
+			layout_        = VK_NULL_HANDLE;
 			layout_handle_ = {};
 		}
 	}
@@ -240,12 +240,12 @@ Pipeline::Pipeline(Pipeline &&other) noexcept
       vert_shader_handle_(other.vert_shader_handle_),
       frag_shader_handle_(other.frag_shader_handle_),
       layout_handle_(other.layout_handle_) {
-	other.layout_           = VK_NULL_HANDLE;
-	other.owns_layout_      = false;
-	other.handle_            = {};
+	other.layout_             = VK_NULL_HANDLE;
+	other.owns_layout_        = false;
+	other.handle_             = {};
 	other.vert_shader_handle_ = {};
 	other.frag_shader_handle_ = {};
-	other.layout_handle_ = {};
+	other.layout_handle_      = {};
 }
 
 VkPipeline Pipeline::pipeline() const noexcept {
@@ -290,31 +290,31 @@ void Pipeline::drawIndexed(
 }
 
 ComputePipeline::ComputePipeline(
-    VulkanDevice      &device,
-    const std::string &compFilepath,
-    BorrowedPipelineLayout layout,
+    VulkanDevice                  &device,
+    const std::string             &compFilepath,
+    BorrowedPipelineLayout         layout,
     const SpecializationConstants &specialization)
     : device_(device) {
-	VkShaderModule module = VK_NULL_HANDLE;
-	VkPipeline pipeline = VK_NULL_HANDLE;
+	VkShaderModule module   = VK_NULL_HANDLE;
+	VkPipeline     pipeline = VK_NULL_HANDLE;
 	try {
-	shader_handle_ = device_.resources().acquireShader(compFilepath);
-	if (shader_handle_.valid()) {
-		const auto *resource = device_.resources().shader(shader_handle_);
-		module = resource == nullptr ? VK_NULL_HANDLE : resource->module;
-	} else {
-		const auto code = readShaderFile(compFilepath);
-		module = createShaderModule(device_, code, compFilepath);
-		shader_handle_ = device_.resources().registerShader({module, 1, compFilepath});
-	}
+		shader_handle_ = device_.resources().acquireShader(compFilepath);
+		if (shader_handle_.valid()) {
+			const auto *resource = device_.resources().shader(shader_handle_);
+			module               = resource == nullptr ? VK_NULL_HANDLE : resource->module;
+		} else {
+			const auto code = readShaderFile(compFilepath);
+			module          = createShaderModule(device_, code, compFilepath);
+			shader_handle_  = device_.resources().registerShader({ module, 1, compFilepath });
+		}
 
 		if (!layout.valid()) {
 			VkPipelineLayoutCreateInfo layout_info{};
 			layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 			checkVk(vkCreatePipelineLayout(device_.device(), &layout_info, nullptr, &layout_),
 			        "create compute pipeline layout");
-			owns_layout_ = true;
-			layout_handle_ = device_.resources().registerPipelineLayout({layout_});
+			owns_layout_   = true;
+			layout_handle_ = device_.resources().registerPipelineLayout({ layout_ });
 		} else {
 			layout_ = layout.get();
 		}
@@ -329,13 +329,13 @@ ComputePipeline::ComputePipeline(
 		pipeline_info.stage.pName  = "main";
 		pipeline_info.stage.pSpecializationInfo =
 		    specialization.empty() ? nullptr : &specialization_info;
-		pipeline_info.layout       = layout_;
+		pipeline_info.layout             = layout_;
 		pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
 		pipeline_info.basePipelineIndex  = -1;
 
 		checkVk(vkCreateComputePipelines(device_.device(), device_.pipelineCache(), 1, &pipeline_info, nullptr, &pipeline),
 		        "create compute pipeline");
-		handle_ = device_.resources().registerPipeline({pipeline, layout_});
+		handle_ = device_.resources().registerPipeline({ pipeline, layout_ });
 
 	} catch (...) {
 		if (module != VK_NULL_HANDLE) {
@@ -344,8 +344,8 @@ ComputePipeline::ComputePipeline(
 		}
 		if (owns_layout_ && layout_ != VK_NULL_HANDLE) {
 			device_.resources().unregisterPipelineLayout(layout_handle_);
-			layout_      = VK_NULL_HANDLE;
-			owns_layout_ = false;
+			layout_        = VK_NULL_HANDLE;
+			owns_layout_   = false;
 			layout_handle_ = {};
 		}
 		throw;
@@ -353,9 +353,9 @@ ComputePipeline::ComputePipeline(
 }
 
 ComputePipeline::ComputePipeline(
-    VulkanDevice &device,
-    const ComputeShaderFile &shader,
-    BorrowedPipelineLayout layout,
+    VulkanDevice                  &device,
+    const ComputeShaderFile       &shader,
+    BorrowedPipelineLayout         layout,
     const SpecializationConstants &specialization)
     : ComputePipeline(device, shader.compute, layout, specialization) {}
 
@@ -365,7 +365,7 @@ ComputePipeline::~ComputePipeline() {
 		device_.resources().unregisterShader(shader_handle_);
 		if (owns_layout_ && layout_ != VK_NULL_HANDLE) {
 			device_.resources().unregisterPipelineLayout(layout_handle_);
-			layout_ = VK_NULL_HANDLE;
+			layout_        = VK_NULL_HANDLE;
 			layout_handle_ = {};
 		}
 	}
@@ -378,9 +378,9 @@ ComputePipeline::ComputePipeline(ComputePipeline &&other) noexcept
       handle_(other.handle_),
       shader_handle_(other.shader_handle_),
       layout_handle_(other.layout_handle_) {
-	other.layout_      = VK_NULL_HANDLE;
-	other.owns_layout_ = false;
-	other.handle_      = {};
+	other.layout_        = VK_NULL_HANDLE;
+	other.owns_layout_   = false;
+	other.handle_        = {};
 	other.shader_handle_ = {};
 	other.layout_handle_ = {};
 }

@@ -1,6 +1,6 @@
-#include <oxide/vulkan/resources/texture_descriptor.hpp>
-#include <oxide/vulkan/resources/image_texture.hpp>
 #include <oxide/tools/log.hpp>
+#include <oxide/vulkan/resources/image_texture.hpp>
+#include <oxide/vulkan/resources/texture_descriptor.hpp>
 
 namespace oxide {
 
@@ -23,11 +23,11 @@ TextureDescriptorSet::TextureDescriptorSet(
     : TextureDescriptorSet(device, texture.imageView(), texture.sampler(), binding, stageFlags) {}
 
 TextureDescriptorSet::TextureDescriptorSet(
-    VulkanDevice       &device,
-    VkImageView         imageView,
-    VkSampler           sampler,
-    std::uint32_t       binding,
-    VkShaderStageFlags  stageFlags)
+    VulkanDevice      &device,
+    VkImageView        imageView,
+    VkSampler          sampler,
+    std::uint32_t      binding,
+    VkShaderStageFlags stageFlags)
     : owned_layout_(std::make_unique<DescriptorSetLayout>(
           device, DescriptorBinding{ binding, DEFAULT_DESCRIPTOR_TYPE, stageFlags })),
       layout_handle_(owned_layout_->handle()),
@@ -37,18 +37,18 @@ TextureDescriptorSet::TextureDescriptorSet(
 }
 
 TextureDescriptorSet::TextureDescriptorSet(
-    VulkanDevice        &device,
-    const ImageTexture  &texture,
+    VulkanDevice         &device,
+    const ImageTexture   &texture,
     VkDescriptorSetLayout layout,
-    std::uint32_t        binding)
+    std::uint32_t         binding)
     : TextureDescriptorSet(device, texture.imageView(), texture.sampler(), layout, binding) {}
 
 TextureDescriptorSet::TextureDescriptorSet(
-    VulkanDevice        &device,
-    VkImageView          imageView,
-    VkSampler            sampler,
+    VulkanDevice         &device,
+    VkImageView           imageView,
+    VkSampler             sampler,
     VkDescriptorSetLayout layout,
-    std::uint32_t        binding)
+    std::uint32_t         binding)
     : layout_handle_(requireLayout(layout)),
       pool_(device, DEFAULT_DESCRIPTOR_TYPE),
       set_(pool_, layout_handle_) {

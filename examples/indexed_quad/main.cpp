@@ -15,8 +15,8 @@ struct QuadVertex {
 int main() {
 	try {
 		oxide::Application    app(640, 480, "Indexed Quad");
-		oxide::Window        &window = app.window();
-		oxide::VulkanDevice  &device = app.device();
+		oxide::Window        &window         = app.window();
+		oxide::VulkanDevice  &device         = app.device();
 		oxide::VulkanContext &vulkan_context = app.context();
 
 		// Tell the pipeline how to read each QuadVertex from the vertex buffer.
@@ -29,7 +29,7 @@ int main() {
 		    oxide::Pipeline::defaultPipelineConfigInfo();
 		pipeline_config.setVertexInput(vertex_input_description);
 
-		oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
+		oxide::ShaderLibrary             shader_library(OXIDE_SHADER_DIR);
 		const oxide::GraphicsShaderFiles quad_shaders =
 		    shader_library.graphics("indexed_quad");
 		const oxide::ShaderReflection quad_reflection =
@@ -49,8 +49,8 @@ int main() {
 			{ { -0.6f, 0.6f },  { 1.0f, 0.8f, 0.2f } },
 		};
 		const std::vector<std::uint16_t> quad_indices = { 0, 1, 2, 2, 3, 0 };
-		oxide::Mesh           quad_mesh(device, quad_vertices, quad_indices);
-		oxide::DeviceIdleGuard device_idle_guard(device);
+		oxide::Mesh                      quad_mesh(device, quad_vertices, quad_indices);
+		oxide::DeviceIdleGuard           device_idle_guard(device);
 
 		while (!window.shouldClose()) {
 			window.pollEvents();

@@ -15,8 +15,8 @@ int main() {
 	// High-level bootstrap: the application owns the window, device, and
 	// presentation context.
 	oxide::Application    app(500, 500, "Classic Vulkan Triangle");
-	oxide::Window        &window = app.window();
-	oxide::VulkanDevice  &device = app.device();
+	oxide::Window        &window         = app.window();
+	oxide::VulkanDevice  &device         = app.device();
 	oxide::VulkanContext &vulkan_context = app.context();
 
 	// Describe how a TriangleVertex is laid out in memory so the pipeline can
@@ -34,7 +34,7 @@ int main() {
 	// "vulkan_triangle" resolves the compiled vulkan_triangle.vert.spv and
 	// vulkan_triangle.frag.spv pair from OXIDE_SHADER_DIR. Reflection reads the
 	// same SPIR-V, so the pipeline layout always matches the shader interface.
-	oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
+	oxide::ShaderLibrary             shader_library(OXIDE_SHADER_DIR);
 	const oxide::GraphicsShaderFiles triangle_shaders =
 	    shader_library.graphics("vulkan_triangle");
 	const oxide::ShaderReflection triangle_reflection =

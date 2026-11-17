@@ -61,7 +61,7 @@ struct DescriptorBinding {
 class DescriptorSetLayout {
   public:
 	DescriptorSetLayout(
-	    VulkanDevice &device,
+	    VulkanDevice                            &device,
 	    std::initializer_list<DescriptorBinding> bindings);
 	explicit DescriptorSetLayout(VulkanDevice &device, const DescriptorBinding &binding);
 	~DescriptorSetLayout();
@@ -71,12 +71,12 @@ class DescriptorSetLayout {
 	DescriptorSetLayout(DescriptorSetLayout &&)                 = delete;
 	DescriptorSetLayout &operator=(DescriptorSetLayout &&)      = delete;
 
-	[[nodiscard]] VkDescriptorSetLayout handle() const noexcept { return layout_; }
+	[[nodiscard]] VkDescriptorSetLayout  handle() const noexcept { return layout_; }
 	[[nodiscard]] DescriptorLayoutHandle resourceHandle() const noexcept { return resource_handle_; }
 
   private:
 	VulkanDevice          &device_;
-	VkDescriptorSetLayout layout_ = VK_NULL_HANDLE;
+	VkDescriptorSetLayout  layout_ = VK_NULL_HANDLE;
 	DescriptorLayoutHandle resource_handle_{};
 };
 
@@ -89,14 +89,14 @@ class DescriptorSetLayout {
 class DescriptorPool {
   public:
 	DescriptorPool(
-	    VulkanDevice                                &device,
+	    VulkanDevice                               &device,
 	    std::initializer_list<VkDescriptorPoolSize> sizes,
-	    std::uint32_t                                maxSets = 1);
+	    std::uint32_t                               maxSets = 1);
 	DescriptorPool(
-	    VulkanDevice  &device,
+	    VulkanDevice    &device,
 	    VkDescriptorType type,
-	    std::uint32_t descriptorCount = 1,
-	    std::uint32_t maxSets         = 1);
+	    std::uint32_t    descriptorCount = 1,
+	    std::uint32_t    maxSets         = 1);
 	~DescriptorPool();
 
 	DescriptorPool(const DescriptorPool &)            = delete;
@@ -104,13 +104,13 @@ class DescriptorPool {
 	DescriptorPool(DescriptorPool &&)                 = delete;
 	DescriptorPool &operator=(DescriptorPool &&)      = delete;
 
-	[[nodiscard]] VkDescriptorPool handle() const noexcept { return pool_; }
+	[[nodiscard]] VkDescriptorPool     handle() const noexcept { return pool_; }
 	[[nodiscard]] DescriptorPoolHandle resourceHandle() const noexcept { return resource_handle_; }
-	[[nodiscard]] VkDescriptorSet  allocate(VkDescriptorSetLayout layout);
+	[[nodiscard]] VkDescriptorSet      allocate(VkDescriptorSetLayout layout);
 
   private:
-	VulkanDevice    &device_;
-	VkDescriptorPool pool_ = VK_NULL_HANDLE;
+	VulkanDevice        &device_;
+	VkDescriptorPool     pool_ = VK_NULL_HANDLE;
 	DescriptorPoolHandle resource_handle_{};
 };
 

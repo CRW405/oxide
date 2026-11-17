@@ -1,6 +1,6 @@
-#include <oxide/vulkan/pipeline/pipeline_layout.hpp>
 #include <oxide/tools/log.hpp>
 #include <oxide/vulkan/core/vk_error.hpp>
+#include <oxide/vulkan/pipeline/pipeline_layout.hpp>
 #include <oxide/vulkan/pipeline/shader_reflection.hpp>
 
 #include <stdexcept>
@@ -8,11 +8,11 @@
 namespace oxide {
 
 PipelineLayout::PipelineLayout(
-    VulkanDevice &device,
+    VulkanDevice                &device,
     const VkDescriptorSetLayout *descriptorSetLayouts,
-    std::uint32_t descriptorSetLayoutCount,
-    const VkPushConstantRange *pushConstantRanges,
-    std::uint32_t pushConstantRangeCount)
+    std::uint32_t                descriptorSetLayoutCount,
+    const VkPushConstantRange   *pushConstantRanges,
+    std::uint32_t                pushConstantRangeCount)
     : device_(device) {
 	if (descriptorSetLayoutCount > 0 && descriptorSetLayouts == nullptr) {
 		throw invalidArgument("pipeline layout requires descriptor set layouts when the count is non-zero");
@@ -38,7 +38,7 @@ PipelineLayout::PipelineLayout(
 
 	checkVk(vkCreatePipelineLayout(device_.device(), &createInfo, nullptr, &layout_),
 	        "create pipeline layout");
-	resource_handle_ = device_.resources().registerPipelineLayout({layout_});
+	resource_handle_ = device_.resources().registerPipelineLayout({ layout_ });
 }
 
 PipelineLayout::PipelineLayout(VulkanDevice &device, const ShaderReflection &reflection)
@@ -62,7 +62,7 @@ PipelineLayout::PipelineLayout(VulkanDevice &device, const ShaderReflection &ref
 			        "create reflected descriptor set layout");
 			descriptor_set_layouts_[set] = descriptor_layout;
 			owned_descriptor_layouts_.push_back(
-			    device_.resources().registerDescriptorLayout({descriptor_layout}));
+			    device_.resources().registerDescriptorLayout({ descriptor_layout }));
 		}
 
 		push_constant_ranges_ = reflection.pushConstantRanges();
@@ -76,7 +76,7 @@ PipelineLayout::PipelineLayout(VulkanDevice &device, const ShaderReflection &ref
 
 		checkVk(vkCreatePipelineLayout(device_.device(), &create_info, nullptr, &layout_),
 		        "create reflected pipeline layout");
-		resource_handle_ = device_.resources().registerPipelineLayout({layout_});
+		resource_handle_ = device_.resources().registerPipelineLayout({ layout_ });
 	} catch (...) {
 		for (DescriptorLayoutHandle handle : owned_descriptor_layouts_) {
 			device_.resources().unregisterDescriptorLayout(handle);
@@ -88,9 +88,9 @@ PipelineLayout::PipelineLayout(VulkanDevice &device, const ShaderReflection &ref
 }
 
 PipelineLayout::PipelineLayout(
-    VulkanDevice &device,
+    VulkanDevice                                &device,
     std::initializer_list<VkDescriptorSetLayout> descriptorSetLayouts,
-    std::initializer_list<VkPushConstantRange> pushConstantRanges)
+    std::initializer_list<VkPushConstantRange>   pushConstantRanges)
     : PipelineLayout(
           device,
           descriptorSetLayouts.begin(),
@@ -99,7 +99,7 @@ PipelineLayout::PipelineLayout(
           static_cast<std::uint32_t>(pushConstantRanges.size())) {}
 
 PipelineLayout::PipelineLayout(
-    VulkanDevice &device,
+    VulkanDevice                              &device,
     std::initializer_list<VkPushConstantRange> pushConstantRanges)
     : PipelineLayout(device, nullptr, 0, pushConstantRanges.begin(),
                      static_cast<std::uint32_t>(pushConstantRanges.size())) {}
@@ -135,4 +135,4 @@ void PipelineLayout::bindDescriptorSet(
 	                        nullptr);
 }
 
-}
+} // namespace oxide

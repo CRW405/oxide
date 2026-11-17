@@ -44,7 +44,7 @@ class PushConstant {
 	    : range_{ stageFlags, offset, size } {}
 
 	[[nodiscard]] constexpr const VkPushConstantRange &range() const noexcept { return range_; }
-	[[nodiscard]] constexpr VkShaderStageFlags        stageFlags() const noexcept {
+	[[nodiscard]] constexpr VkShaderStageFlags         stageFlags() const noexcept {
 		return range_.stageFlags;
 	}
 	[[nodiscard]] constexpr std::uint32_t offset() const noexcept { return range_.offset; }
@@ -52,9 +52,9 @@ class PushConstant {
 
 	template <typename T>
 	void push(
-	    VkCommandBuffer   commandBuffer,
-	    VkPipelineLayout  pipelineLayout,
-	    const T          &data) const {
+	    VkCommandBuffer  commandBuffer,
+	    VkPipelineLayout pipelineLayout,
+	    const T         &data) const {
 		static_assert(std::is_trivially_copyable_v<T>, "push constants must be trivially copyable");
 		static_assert(sizeof(T) <= sizeof(std::uint32_t) * 32, "push constant exceeds the minimum Vulkan limit");
 		vkCmdPushConstants(commandBuffer,
@@ -83,17 +83,17 @@ template <typename T>
 class PipelineLayout {
   public:
 	PipelineLayout(
-	    VulkanDevice &device,
-	    const VkDescriptorSetLayout *descriptorSetLayouts = nullptr,
-	    std::uint32_t descriptorSetLayoutCount = 0,
-	    const VkPushConstantRange *pushConstantRanges = nullptr,
-	    std::uint32_t pushConstantRangeCount = 0);
+	    VulkanDevice                &device,
+	    const VkDescriptorSetLayout *descriptorSetLayouts     = nullptr,
+	    std::uint32_t                descriptorSetLayoutCount = 0,
+	    const VkPushConstantRange   *pushConstantRanges       = nullptr,
+	    std::uint32_t                pushConstantRangeCount   = 0);
 	PipelineLayout(
-	    VulkanDevice &device,
+	    VulkanDevice                                &device,
 	    std::initializer_list<VkDescriptorSetLayout> descriptorSetLayouts,
-	    std::initializer_list<VkPushConstantRange> pushConstantRanges);
+	    std::initializer_list<VkPushConstantRange>   pushConstantRanges);
 	PipelineLayout(
-	    VulkanDevice &device,
+	    VulkanDevice                              &device,
 	    std::initializer_list<VkPushConstantRange> pushConstantRanges);
 
 	// Build the descriptor set layouts and push-constant ranges from SPIR-V.
@@ -110,7 +110,7 @@ class PipelineLayout {
 
 	// This layout is owned by PipelineLayout and remains valid until it is
 	// destroyed. Pass it to a pipeline as BorrowedPipelineLayout when sharing.
-	[[nodiscard]] VkPipelineLayout handle() const noexcept { return layout_; }
+	[[nodiscard]] VkPipelineLayout     handle() const noexcept { return layout_; }
 	[[nodiscard]] PipelineLayoutHandle resourceHandle() const noexcept { return resource_handle_; }
 
 	// Descriptor set layouts used by this pipeline layout, in set order. The
@@ -156,19 +156,19 @@ class PipelineLayout {
 	// offset. Arrays and custom data can still use the overload above.
 	template <typename T>
 	void pushConstant(
-	    VkCommandBuffer    commandBuffer,
+	    VkCommandBuffer     commandBuffer,
 	    const PushConstant &constant,
 	    const T            &data) const {
 		constant.push(commandBuffer, layout_, data);
 	}
 
   private:
-	VulkanDevice                          &device_;
-	VkPipelineLayout                       layout_ = VK_NULL_HANDLE;
-	PipelineLayoutHandle                   resource_handle_{};
-	std::vector<VkDescriptorSetLayout>     descriptor_set_layouts_;
-	std::vector<DescriptorLayoutHandle>    owned_descriptor_layouts_;
-	std::vector<VkPushConstantRange>       push_constant_ranges_;
+	VulkanDevice                       &device_;
+	VkPipelineLayout                    layout_ = VK_NULL_HANDLE;
+	PipelineLayoutHandle                resource_handle_{};
+	std::vector<VkDescriptorSetLayout>  descriptor_set_layouts_;
+	std::vector<DescriptorLayoutHandle> owned_descriptor_layouts_;
+	std::vector<VkPushConstantRange>    push_constant_ranges_;
 };
 
-}
+} // namespace oxide

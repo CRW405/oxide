@@ -13,8 +13,8 @@ struct SceneVertex {
 int main() {
 	try {
 		oxide::Application    app(900, 600, "Engine Workflow");
-		oxide::Window        &window = app.window();
-		oxide::VulkanDevice  &device = app.device();
+		oxide::Window        &window         = app.window();
+		oxide::VulkanDevice  &device         = app.device();
 		oxide::VulkanContext &vulkan_context = app.context();
 
 		// One shader library serves every pipeline in this program. Each
@@ -69,7 +69,7 @@ int main() {
 		    shader_library.compute("simulation");
 		const oxide::ShaderReflection simulation_reflection =
 		    oxide::ShaderReflection::fromCompute(simulation_shader);
-		oxide::PipelineLayout simulation_layout(device, simulation_reflection);
+		oxide::PipelineLayout  simulation_layout(device, simulation_reflection);
 		oxide::ComputePipeline simulation_pipeline(
 		    device, simulation_shader,
 		    oxide::BorrowedPipelineLayout(simulation_layout.handle()));
@@ -79,7 +79,7 @@ int main() {
 			{ { 0.0f, 0.65f },   { 0.2f, 0.9f, 0.3f } },
 			{ { 0.65f, -0.5f },  { 0.2f, 0.4f, 1.0f } }
 		};
-		oxide::VertexBuffer   scene_vertex_buffer(device, scene_vertices);
+		oxide::VertexBuffer    scene_vertex_buffer(device, scene_vertices);
 		oxide::DeviceIdleGuard device_idle_guard(device);
 
 		while (!window.shouldClose()) {

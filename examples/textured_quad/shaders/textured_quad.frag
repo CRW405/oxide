@@ -9,7 +9,7 @@ layout(location = 0) out vec4 outColor;
 layout(set = 0, binding = 0) uniform sampler2D quadTexture;
 
 void main() {
-    // Flip V so the image's top row maps to the top of the quad.
-    vec2 flippedUv = vec2(fragmentUv.x, 1.0 - fragmentUv.y);
-    outColor = texture(quadTexture, flippedUv);
+	// Flip V so the image's top row maps to the top of the quad.
+	vec2 flippedUv = vec2(fragmentUv.x, 1.0 - fragmentUv.y);
+	outColor       = texture(quadTexture, flippedUv);
 }

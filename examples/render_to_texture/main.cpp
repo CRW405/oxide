@@ -12,14 +12,14 @@ struct ScenePush {
 int main() {
 	try {
 		oxide::Application    app(900, 600, "Render To Texture");
-		oxide::Window        &window = app.window();
-		oxide::VulkanDevice  &device = app.device();
+		oxide::Window        &window         = app.window();
+		oxide::VulkanDevice  &device         = app.device();
 		oxide::VulkanContext &vulkan_context = app.context();
 
 		oxide::OffscreenTarget target(device, {
-		    .width  = 800,
-		    .height = 600,
-		});
+		                                          .width  = 800,
+		                                          .height = 600,
+		                                      });
 
 		oxide::ShaderLibrary shader_library(OXIDE_SHADER_DIR);
 
@@ -31,7 +31,7 @@ int main() {
 		    shader_library.graphics("offscreen_scene");
 		const oxide::ShaderReflection scene_reflection =
 		    oxide::ShaderReflection::fromGraphics(scene_shaders);
-		oxide::PipelineLayout scene_layout(device, scene_reflection);
+		oxide::PipelineLayout     scene_layout(device, scene_reflection);
 		const VkPushConstantRange scene_push_range =
 		    scene_reflection.pushConstantRanges().front();
 
@@ -51,7 +51,7 @@ int main() {
 		    shader_library.graphics("sample_pass");
 		const oxide::ShaderReflection sample_reflection =
 		    oxide::ShaderReflection::fromGraphics(sample_shaders);
-		oxide::PipelineLayout sample_layout(device, sample_reflection);
+		oxide::PipelineLayout       sample_layout(device, sample_reflection);
 		oxide::TextureDescriptorSet scene_descriptor(
 		    device, target.colorView(), target.sampler(),
 		    sample_layout.descriptorSetLayout(0));

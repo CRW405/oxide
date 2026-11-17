@@ -20,7 +20,7 @@ class ShaderLibrary {
 	explicit ShaderLibrary(std::string directory) : directory_(std::move(directory)) {}
 
 	[[nodiscard]] GraphicsShaderFiles graphics(const std::string &name) const;
-	[[nodiscard]] ComputeShaderFile compute(const std::string &name) const;
+	[[nodiscard]] ComputeShaderFile   compute(const std::string &name) const;
 
   private:
 	std::string directory_;

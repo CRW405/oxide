@@ -29,8 +29,8 @@ struct Frame {
 // pipeline created against it must be recreated before it is bound again.
 // ============================================================================
 struct SwapchainRecreationInfo {
-	VkRenderPass  renderPass        = VK_NULL_HANDLE;
-	VkFormat      format            = VK_FORMAT_UNDEFINED;
+	VkRenderPass  renderPass = VK_NULL_HANDLE;
+	VkFormat      format     = VK_FORMAT_UNDEFINED;
 	VkExtent2D    extent{};
 	bool          renderPassChanged = false;
 	std::uint64_t generation        = 0;
@@ -55,9 +55,9 @@ class FrameScope {
 		return frame_.commandBuffer != VK_NULL_HANDLE;
 	}
 	[[nodiscard]] VkCommandBuffer commandBuffer() const noexcept { return frame_.commandBuffer; }
-	[[nodiscard]] std::uint32_t frameIndex() const noexcept { return frame_.frameIndex; }
-	[[nodiscard]] std::uint32_t imageIndex() const noexcept { return frame_.imageIndex; }
-	[[nodiscard]] const Frame &frame() const noexcept { return frame_; }
+	[[nodiscard]] std::uint32_t   frameIndex() const noexcept { return frame_.frameIndex; }
+	[[nodiscard]] std::uint32_t   imageIndex() const noexcept { return frame_.imageIndex; }
+	[[nodiscard]] const Frame    &frame() const noexcept { return frame_; }
 
   private:
 	VulkanContext *context_ = nullptr;
@@ -115,12 +115,12 @@ class VulkanContext {
 	VulkanContext(VulkanContext &&)                 = delete;
 	VulkanContext &operator=(VulkanContext &&)      = delete;
 
-	[[nodiscard]] VkRenderPass                    renderPass() const noexcept { return render_pass_; }
-	[[nodiscard]] VkExtent2D                      extent() const noexcept { return swapchain_extent_; }
-	[[nodiscard]] VkFormat                        swapchainFormat() const noexcept { return swapchain_format_; }
-	[[nodiscard]] VkFormat                        depthFormat() const noexcept { return depth_format_; }
-	[[nodiscard]] VkSampleCountFlagBits           sampleCount() const noexcept { return sample_count_; }
-	[[nodiscard]] VkPresentModeKHR                swapchainPresentMode() const noexcept {
+	[[nodiscard]] VkRenderPass          renderPass() const noexcept { return render_pass_; }
+	[[nodiscard]] VkExtent2D            extent() const noexcept { return swapchain_extent_; }
+	[[nodiscard]] VkFormat              swapchainFormat() const noexcept { return swapchain_format_; }
+	[[nodiscard]] VkFormat              depthFormat() const noexcept { return depth_format_; }
+	[[nodiscard]] VkSampleCountFlagBits sampleCount() const noexcept { return sample_count_; }
+	[[nodiscard]] VkPresentModeKHR      swapchainPresentMode() const noexcept {
 		return swapchain_present_mode_;
 	}
 	[[nodiscard]] VkImageUsageFlags swapchainImageUsage() const noexcept { return swapchain_image_usage_; }
@@ -136,23 +136,23 @@ class VulkanContext {
 	// Appends a callback and returns an id that can be passed to
 	// removeSwapchainRecreatedCallback(). Removing a callback during
 	// notification is safe because the callback list is copied first.
-	[[nodiscard]] SwapchainCallbackId addSwapchainRecreatedCallback(SwapchainRecreatedCallback callback);
-	bool                             removeSwapchainRecreatedCallback(SwapchainCallbackId id) noexcept;
+	[[nodiscard]] SwapchainCallbackId             addSwapchainRecreatedCallback(SwapchainRecreatedCallback callback);
+	bool                                          removeSwapchainRecreatedCallback(SwapchainCallbackId id) noexcept;
 	[[nodiscard]] const std::vector<VkImage>     &swapchainImages() const noexcept { return swapchain_images_; }
 	[[nodiscard]] const std::vector<VkImageView> &swapchainImageViews() const noexcept {
 		return swapchain_image_views_;
 	}
 	[[nodiscard]] VkFramebuffer framebuffer(std::uint32_t index) const;
 
-	[[nodiscard]] Frame beginFrame();
+	[[nodiscard]] Frame      beginFrame();
 	[[nodiscard]] FrameScope beginFrameScope(std::array<float, 4> clearColor);
-	void                endFrame(const Frame &frame);
-	void                beginRenderPass(const Frame &frame, std::array<float, 4> clearColor);
-	void                endRenderPass(const Frame &frame);
-	void                setViewportAndScissor(VkCommandBuffer commandBuffer) const;
-	void                recreateSwapchain();
-	void                recoverSurface();
-	void                notifyFramebufferResized() { framebuffer_resized_ = true; }
+	void                     endFrame(const Frame &frame);
+	void                     beginRenderPass(const Frame &frame, std::array<float, 4> clearColor);
+	void                     endRenderPass(const Frame &frame);
+	void                     setViewportAndScissor(VkCommandBuffer commandBuffer) const;
+	void                     recreateSwapchain();
+	void                     recoverSurface();
+	void                     notifyFramebufferResized() { framebuffer_resized_ = true; }
 
   private:
 	struct SwapchainSupportDetails {
@@ -181,20 +181,20 @@ class VulkanContext {
 	[[nodiscard]] VkFormat                findDepthFormat(VkSampleCountFlagBits sampleCount) const;
 	[[nodiscard]] SwapchainSupportDetails querySwapchainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) const;
 
-	VulkanDevice    &device_;
-	Window          *window_;
-	SwapchainConfig  swapchain_config_;
+	VulkanDevice   &device_;
+	Window         *window_;
+	SwapchainConfig swapchain_config_;
 
-	VkSurfaceKHR                                      surface_          = VK_NULL_HANDLE;
-	VkSwapchainKHR                                    swapchain_        = VK_NULL_HANDLE;
-	VkFormat                                          swapchain_format_ = VK_FORMAT_UNDEFINED;
-	VkFormat                                          depth_format_     = VK_FORMAT_UNDEFINED;
-	VkPresentModeKHR                                  swapchain_present_mode_ = VK_PRESENT_MODE_FIFO_KHR;
-	VkImageUsageFlags                                 swapchain_image_usage_  = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	VkExtent2D                                        swapchain_extent_{};
-	std::vector<VkImage>                              swapchain_images_;
-	std::vector<VkImageView>                          swapchain_image_views_;
-	std::vector<VkFramebuffer>                        swapchain_framebuffers_;
+	VkSurfaceKHR               surface_                = VK_NULL_HANDLE;
+	VkSwapchainKHR             swapchain_              = VK_NULL_HANDLE;
+	VkFormat                   swapchain_format_       = VK_FORMAT_UNDEFINED;
+	VkFormat                   depth_format_           = VK_FORMAT_UNDEFINED;
+	VkPresentModeKHR           swapchain_present_mode_ = VK_PRESENT_MODE_FIFO_KHR;
+	VkImageUsageFlags          swapchain_image_usage_  = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	VkExtent2D                 swapchain_extent_{};
+	std::vector<VkImage>       swapchain_images_;
+	std::vector<VkImageView>   swapchain_image_views_;
+	std::vector<VkFramebuffer> swapchain_framebuffers_;
 	// One attachment set per swapchain image. Reusing a single depth or MSAA
 	// color image across frames in flight would let two submissions write the
 	// same attachment at once, so the framebuffer for each image owns its own.
@@ -206,9 +206,9 @@ class VulkanContext {
 		VkImageView    view         = VK_NULL_HANDLE;
 	};
 
-	std::vector<AttachmentImage> color_images_;
-	std::vector<AttachmentImage> depth_images_;
-	VkSampleCountFlagBits                             sample_count_       = VK_SAMPLE_COUNT_1_BIT;
+	std::vector<AttachmentImage>                      color_images_;
+	std::vector<AttachmentImage>                      depth_images_;
+	VkSampleCountFlagBits                             sample_count_ = VK_SAMPLE_COUNT_1_BIT;
 	VkRenderPass                                      render_pass_  = VK_NULL_HANDLE;
 	VkCommandPool                                     command_pool_ = VK_NULL_HANDLE;
 	std::array<VkCommandBuffer, MAX_FRAMES_IN_FLIGHT> command_buffers_{};
@@ -224,7 +224,7 @@ class VulkanContext {
 	SwapchainRecreatedCallback swapchain_recreated_callback_;
 
 	struct SwapchainCallbackEntry {
-		SwapchainCallbackId       id = 0;
+		SwapchainCallbackId        id = 0;
 		SwapchainRecreatedCallback callback;
 	};
 
@@ -232,4 +232,4 @@ class VulkanContext {
 	SwapchainCallbackId                 next_swapchain_callback_id_ = 1;
 };
 
-}
+} // namespace oxide

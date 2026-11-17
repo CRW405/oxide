@@ -22,19 +22,19 @@ struct ScenePush {
 int main() {
 	try {
 		oxide::Application    app(1100, 700, "MSAA + MRT + Resolve");
-		oxide::Window        &window = app.window();
-		oxide::VulkanDevice  &device = app.device();
+		oxide::Window        &window         = app.window();
+		oxide::VulkanDevice  &device         = app.device();
 		oxide::VulkanContext &vulkan_context = app.context();
 
 		// Two color attachments at 4x MSAA. Each attachment is resolved into a
 		// single-sample image that colorView()/sampler() expose.
 		oxide::OffscreenTarget target(device, {
-		    .width = 1100,
-		    .height = 700,
-		    .colorFormats = { VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_R8G8B8A8_UNORM },
-		    .depth = true,
-		    .sampleCount = VK_SAMPLE_COUNT_4_BIT,
-		});
+		                                          .width        = 1100,
+		                                          .height       = 700,
+		                                          .colorFormats = { VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_R8G8B8A8_UNORM },
+		                                          .depth        = true,
+		                                          .sampleCount  = VK_SAMPLE_COUNT_4_BIT,
+        });
 		OXIDE_LOG_INFO << "rendering " << target.colorCount() << " MRT attachments at "
 		               << static_cast<int>(target.sampleCount()) << "x MSAA with resolve";
 
@@ -47,7 +47,7 @@ int main() {
 		    shader_library.graphics("scene");
 		const oxide::ShaderReflection scene_reflection =
 		    oxide::ShaderReflection::fromGraphics(scene_shaders);
-		oxide::PipelineLayout scene_layout(device, scene_reflection);
+		oxide::PipelineLayout     scene_layout(device, scene_reflection);
 		const VkPushConstantRange scene_push_range =
 		    scene_reflection.pushConstantRanges().front();
 
@@ -77,7 +77,7 @@ int main() {
 		    shader_library.graphics("composite");
 		const oxide::ShaderReflection composite_reflection =
 		    oxide::ShaderReflection::fromGraphics(composite_shaders);
-		oxide::PipelineLayout composite_layout(device, composite_reflection);
+		oxide::PipelineLayout       composite_layout(device, composite_reflection);
 		oxide::TextureDescriptorSet color_set(
 		    device, target.colorView(0), target.sampler(0),
 		    composite_layout.descriptorSetLayout(0));
@@ -97,8 +97,8 @@ int main() {
 		    vulkan_context, device, composite_shaders, composite_config);
 
 		const std::vector<SceneVertex> vertices = {
-			{ { 0.0f, 0.85f },   { 1.00f, 0.30f, 0.20f } },
-			{ { 0.95f, -0.70f }, { 0.20f, 0.95f, 0.35f } },
+			{ { 0.0f, 0.85f },    { 1.00f, 0.30f, 0.20f } },
+			{ { 0.95f, -0.70f },  { 0.20f, 0.95f, 0.35f } },
 			{ { -0.95f, -0.70f }, { 0.25f, 0.45f, 1.00f } },
 		};
 		oxide::VertexBuffer    vertex_buffer(device, vertices);
@@ -118,8 +118,10 @@ int main() {
 			// attachment and location 1 to the glow attachment. The render pass
 			// resolves both multisampled images into their sampleable versions.
 			target.beginRenderPass(frame.commandBuffer,
-			                       { { 0.0f, 0.0f, 0.0f, 1.0f },
-			                         { 0.0f, 0.0f, 0.0f, 1.0f } });
+			                       {
+			                           { 0.0f, 0.0f, 0.0f, 1.0f },
+			                           { 0.0f, 0.0f, 0.0f, 1.0f }
+            });
 			target.setViewportAndScissor(frame.commandBuffer);
 			scene_pipeline.bind(frame.commandBuffer);
 			scene_layout.pushConstant(

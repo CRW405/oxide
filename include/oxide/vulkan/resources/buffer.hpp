@@ -23,7 +23,7 @@ class Buffer {
 	Buffer(Buffer &&other) noexcept;
 	Buffer &operator=(Buffer &&) = delete;
 
-	[[nodiscard]] VkBuffer     buffer() const noexcept {
+	[[nodiscard]] VkBuffer buffer() const noexcept {
 		const auto *resource = device_.resources().buffer(handle_);
 		return resource == nullptr ? VK_NULL_HANDLE : resource->buffer;
 	}
@@ -45,8 +45,8 @@ class Buffer {
 
   protected:
 	VulkanDevice &device_;
-	VkDeviceSize size_ = 0;
-	BufferHandle handle_{};
+	VkDeviceSize  size_ = 0;
+	BufferHandle  handle_{};
 };
 
 // ============================================================================
@@ -120,7 +120,7 @@ class Mesh {
   public:
 	template <typename Vertex, typename Index>
 	Mesh(
-	    VulkanDevice             &device,
+	    VulkanDevice              &device,
 	    const std::vector<Vertex> &vertices,
 	    const std::vector<Index>  &indices)
 	    : vertex_buffer_(device, vertices),
